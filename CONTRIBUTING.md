@@ -1,7 +1,7 @@
 # Contributing to X-Asena for Hacktoberfest 2024
 
 👋 **Welcome, Hacktoberfest Participants!**  
-Thank you for your interest in contributing to **X-Asena**, a powerful and versatile Telegram bot platform! We’re excited to have you onboard for Hacktoberfest 2024 and look forward to your contributions, no matter how big or small.
+Thank you for your interest in contributing to **X-Asena**, a powerful and versatile WhatsApp bot platform! We’re excited to have you onboard for Hacktoberfest 2024 and look forward to your contributions, no matter how big or small.
 
 ## Why Contribute During Hacktoberfest?
 

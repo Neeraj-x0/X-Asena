@@ -135,7 +135,8 @@ async function connect() {
       getMessage: async (key) => {
         const id = key?.id;
         if (!id) return undefined;
-        return msgCache.get(id) || undefined;
+        const entry = msgCache.get(id);
+        return entry?.message || entry || undefined;
       },
       cachedGroupMetadata: async (jid) => groupCache.get(jid),
     };
@@ -261,8 +262,17 @@ async function connect() {
         if (!msg?.message) return;
         if (msg.key?.remoteJid === "status@broadcast") return;
 
+        // Anti-Delete: check for revoked messages
+        const { handleAntiDelete } = await import("../events/antiDelete.js");
+        const wasRevoked = await handleAntiDelete(conn, msg);
+        if (wasRevoked) return;
+
         if (msg.key?.id) {
-          msgCache.set(msg.key.id, msg.message);
+          msgCache.set(msg.key.id, {
+            message: msg.message,
+            sender: msg.key?.participant || msg.key?.remoteJid,
+            pushName: msg.pushName || "",
+          });
         }
 
         const message = await serialize(msg, conn);

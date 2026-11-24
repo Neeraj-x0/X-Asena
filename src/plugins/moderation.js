@@ -344,3 +344,67 @@ command(
     }
   }
 );
+
+command(
+  {
+    pattern: "antidelete",
+    fromMe: false,
+    desc: "Toggle/set Anti-Delete message recovery (on/off/pm)",
+    type: "admin",
+  },
+  async (message, conn) => {
+    const rawArgs = (getCommandArgs(message.body, "antidelete") || "").trim().toLowerCase();
+    const isGroup = message.from.endsWith("@g.us");
+
+    // Global toggle (owner only)
+    if (rawArgs.startsWith("global")) {
+      const parts = rawArgs.split(/\s+/);
+      const val = parts[1];
+      const { kvSet } = await import("../database/botKv.js");
+      if (val === "on" || val === "chat") {
+        await kvSet("global_antidelete", "chat");
+        return await replyOk(conn, message, "Global Anti-Delete enabled (Chat mode).");
+      } else if (val === "pm") {
+        await kvSet("global_antidelete", "pm");
+        return await replyOk(conn, message, "Global Anti-Delete enabled (PM mode).");
+      } else if (val === "off") {
+        await kvSet("global_antidelete", "off");
+        return await replyOk(conn, message, "Global Anti-Delete disabled.");
+      }
+      return await replyFail(conn, message, `Usage: \`${BOT_INFO.PREFIX}antidelete global on|pm|off\``);
+    }
+
+    if (!isGroup) {
+      return await replyFail(conn, message, `In direct chats, use \`${BOT_INFO.PREFIX}antidelete global on|pm|off\``);
+    }
+
+    const cur = await getGroupSettings(message.from);
+
+    if (!rawArgs) {
+      const nextState = cur.antidelete ? false : "chat";
+      await setGroupSettings(message.from, { antidelete: nextState });
+      return await replyOk(
+        conn,
+        message,
+        `Anti-Delete is now *${nextState ? (nextState === "pm" ? "ON (PM mode)" : "ON (Chat mode)") : "OFF"}*`
+      );
+    }
+
+    if (rawArgs === "on" || rawArgs === "chat") {
+      await setGroupSettings(message.from, { antidelete: "chat" });
+      return await replyOk(conn, message, "Anti-Delete enabled for this group (Restores in chat).");
+    }
+
+    if (rawArgs === "pm") {
+      await setGroupSettings(message.from, { antidelete: "pm" });
+      return await replyOk(conn, message, "Anti-Delete enabled for this group (Restores sent to PM).");
+    }
+
+    if (rawArgs === "off") {
+      await setGroupSettings(message.from, { antidelete: false });
+      return await replyOk(conn, message, "Anti-Delete disabled for this group.");
+    }
+
+    return await replyFail(conn, message, `Usage: \`${BOT_INFO.PREFIX}antidelete [on|pm|off]\``);
+  }
+);

@@ -65,8 +65,8 @@ export const groupCache = createTtlCache({
   max: 50,
 });
 
-/** Message cache for getMessage retries (~100 entries, 5 min) */
+/** Message cache for getMessage retries and anti-delete (~1000 entries, 2 hours) */
 export const msgCache = createTtlCache({
-  ttlMs: 5 * 60 * 1000,
-  max: 100,
+  ttlMs: 2 * 60 * 60 * 1000,
+  max: 1000,
 });

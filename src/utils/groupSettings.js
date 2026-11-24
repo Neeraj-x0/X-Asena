@@ -17,6 +17,7 @@ const DEFAULTS = {
   antispamLimit: 5,
   antispamWindowMs: 8000,
   warnLimit: 3,
+  antidelete: false,
   muted: [],
   disabledPlugins: [],
 };

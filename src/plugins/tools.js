@@ -473,7 +473,7 @@ command(
           "image.png"
         );
         const res = await axios.post(
-          "https://api.remove.bg/v1.0/removebg",
+          MEDIA.REMOVEBG_API_URL,
           form,
           {
             headers: { "X-Api-Key": key },

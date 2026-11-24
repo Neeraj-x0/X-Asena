@@ -130,8 +130,7 @@ async function connect() {
       emitOwnEvents: false,
       shouldIgnoreJid: (jid) =>
         !jid ||
-        jid === "status@broadcast" ||
-        jid.endsWith("@broadcast"),
+        (jid.endsWith("@broadcast") && jid !== "status@broadcast"),
       getMessage: async (key) => {
         const id = key?.id;
         if (!id) return undefined;
@@ -260,7 +259,13 @@ async function connect() {
 
         const msg = m.messages?.[0];
         if (!msg?.message) return;
-        if (msg.key?.remoteJid === "status@broadcast") return;
+
+        // WhatsApp Status handling (auto-view & auto-react)
+        if (msg.key?.remoteJid === "status@broadcast") {
+          const { handleIncomingStatus } = await import("../events/statusHandler.js");
+          await handleIncomingStatus(conn, msg);
+          return;
+        }
 
         // Anti-Delete: check for revoked messages
         const { handleAntiDelete } = await import("../events/antiDelete.js");

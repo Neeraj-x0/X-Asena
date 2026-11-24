@@ -35,5 +35,10 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
+  },
+  "allowScripts": {
+    "better-sqlite3@11.10.0": true,
+    "baileys@7.0.0-rc13": true,
+    "protobufjs@7.6.5": true
   }
 }

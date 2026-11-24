@@ -7,6 +7,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   DisconnectReason,
   makeCacheableSignalKeyStore,
+  proto,
 } from "baileys";
 import pino from "pino";
 import qrcode from "qrcode-terminal";
@@ -23,6 +24,34 @@ import {
 import { processGroupGuards } from "../messages/groupGuards.js";
 
 const logger = pino({ level: process.env.BAILEYS_LOG_LEVEL || "silent" });
+
+// Install Bad MAC automatic self-healing listener
+if (!globalThis.__badMacHealerInstalled) {
+  globalThis.__badMacHealerInstalled = true;
+  const originalConsoleError = console.error;
+  console.error = function (...args) {
+    const text = args.map((a) => String(a?.stack || a || "")).join(" ");
+    if (text.includes("Bad MAC")) {
+      const match =
+        text.match(/async\s+([a-zA-Z0-9_.-]+)\s+\[as\s+awaitable\]/i) ||
+        text.match(/session-([a-zA-Z0-9_.-]+)/i);
+      if (match && match[1]) {
+        const targetId = match[1];
+        import("../database/authState.js")
+          .then(({ purgeCorruptedSession }) => purgeCorruptedSession(targetId))
+          .then((count) => {
+            if (count > 0) {
+              console.warn(
+                `[signal-healer] 🔄 Automatically purged ${count} corrupted session key(s) for ${targetId} to heal Bad MAC.`
+              );
+            }
+          })
+          .catch(() => {});
+      }
+    }
+    return originalConsoleError.apply(console, args);
+  };
+}
 
 let globalConnection = null;
 let reconnectAttempt = 0;
@@ -94,7 +123,8 @@ async function connect() {
         keys: makeCacheableSignalKeyStore(state.keys, logger),
       },
       syncFullHistory: false,
-      shouldSyncHistoryMessage: () => false,
+      shouldSyncHistoryMessage: ({ syncType }) =>
+        syncType !== proto.HistorySync.HistorySyncType.FULL,
       markOnlineOnConnect: false,
       generateHighQualityLinkPreview: false,
       emitOwnEvents: false,

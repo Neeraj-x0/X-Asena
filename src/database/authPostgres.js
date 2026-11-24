@@ -243,6 +243,27 @@ export async function usePostgresAuthState(sequelize) {
       return !!record;
     },
 
+    purgeSession: async (target) => {
+      try {
+        const { Op } = await import("sequelize");
+        const cleanTarget = String(target).split("_")[0].split(".")[0];
+        const count = await AuthStateDB.destroy({
+          where: {
+            key: {
+              [Op.or]: [
+                { [Op.like]: `%${cleanTarget}%` },
+                { [Op.like]: `sender-key-%${cleanTarget}%` },
+              ],
+            },
+          },
+        });
+        return count;
+      } catch (err) {
+        console.error("[auth-pg] purgeSession error:", err?.message || err);
+        return 0;
+      }
+    },
+
     AuthStateDB,
 
     botKv: {

@@ -218,11 +218,26 @@ export async function useBetterSqliteAuthState(dbPath) {
     },
   };
 
+  const purgeSession = (target) => {
+    try {
+      const cleanTarget = String(target).split("_")[0].split(".")[0];
+      const stmtPurge = db.prepare(
+        "DELETE FROM AuthState WHERE key LIKE ? OR key LIKE ?"
+      );
+      const res = stmtPurge.run(`%${cleanTarget}%`, `sender-key-%${cleanTarget}%`);
+      return res.changes;
+    } catch (err) {
+      console.error("[auth-sqlite] purgeSession error:", err?.message || err);
+      return 0;
+    }
+  };
+
   return {
     state,
     saveCreds,
     clearAuthState,
     hasCreds,
+    purgeSession,
     botKv,
     close: () => db.close(),
   };

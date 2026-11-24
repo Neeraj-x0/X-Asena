@@ -96,3 +96,19 @@ export async function validateAuthState() {
 export async function getAuthStateStats() {
   return null;
 }
+
+/**
+ * Purge corrupted session/sender keys for an address to heal Bad MAC errors.
+ * @param {string} target - Session address or identifier
+ * @returns {Promise<number>} Number of purged records
+ */
+export async function purgeCorruptedSession(target) {
+  if (!initPromise) {
+    await useMultiDbAuthState();
+  }
+  const backend = await initPromise;
+  if (typeof backend?.purgeSession === "function") {
+    return await backend.purgeSession(target);
+  }
+  return 0;
+}

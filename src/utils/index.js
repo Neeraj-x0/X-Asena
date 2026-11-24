@@ -92,4 +92,22 @@ export { t, getLang, setLang, AVAILABLE_LANGS } from "./i18n.js";
 
 export { groupCache, msgCache, createTtlCache } from "./cache.js";
 
+export {
+  ensureAudioStickerProtoPatched,
+  getSessionKey,
+  getActiveSession,
+  clearUserSession,
+  startStickerSession,
+  startAudioSession,
+  getStickerMetadata,
+  parseCustomMetadata,
+  imageToWebpSticker,
+  videoToAnimatedWebpSticker,
+  convertToOggOpus,
+  buildAudioMessage,
+  sendCombinedAudioSticker,
+  inspectMediaNode,
+  downloadMediaFromNode,
+} from "./audioSticker.js";
+
 export { default as logger } from "./logger.js";

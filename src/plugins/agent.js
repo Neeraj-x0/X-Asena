@@ -59,6 +59,7 @@ command(
           `_Commands:_\n` +
           `• \`${BOT_INFO.PREFIX}agent <prompt>\` / \`${BOT_INFO.PREFIX}ask <prompt>\`\n` +
           `• \`${BOT_INFO.PREFIX}agentconfig\` — Set API key, URL, and model\n` +
+          `• \`${BOT_INFO.PREFIX}agentguard\` — Configure prompt injection & jailbreak guardrails\n` +
           `• \`${BOT_INFO.PREFIX}agentpersona\` — Configure agent operational persona\n` +
           `• \`${BOT_INFO.PREFIX}agentkb\` — Manage verified Knowledge Base articles\n` +
           `• \`${BOT_INFO.PREFIX}agentmemory\` — View or reset long-term memories\n` +
@@ -460,6 +461,124 @@ command(
       text += `   • Prompt: "${t.taskPrompt}"\n\n`;
     });
     text += `_To cancel a task: \`${BOT_INFO.PREFIX}agenttasks cancel <task_id>\`_`;
+
+    return await reply(conn, message, text);
+  }
+);
+
+// ==================== PROMPT INJECTION GUARDRAILS COMMAND ====================
+command(
+  {
+    pattern: "agentguard",
+    fromMe: false,
+    desc: "Inspect or configure AI prompt injection guardrails",
+    type: "tools",
+  },
+  async (message, conn) => {
+    const {
+      getGuardrailConfig,
+      setGuardrailConfig,
+      getBlockedAttemptLogs,
+      clearBlockedAttemptLogs,
+      scanPromptInjection,
+    } = await import("../agent/agentInjectionGuard.js");
+
+    const raw = (getCommandArgs(message.body, "agentguard") || "").trim();
+    const [sub, ...rest] = raw.split(/\s+/);
+    const subCmd = (sub || "").toLowerCase();
+    const arg = rest.join(" ").trim();
+
+    const privileged = await isPrivileged(message, conn);
+
+    if (subCmd === "on" || subCmd === "enable") {
+      if (!privileged) return await replyFail(conn, message, "Only bot owner / admins can change guardrail settings.");
+      await setGuardrailConfig({ enabled: true });
+      return await replyOk(conn, message, "AI Prompt Injection Guardrails are now *ENABLED*.");
+    }
+
+    if (subCmd === "off" || subCmd === "disable") {
+      if (!privileged) return await replyFail(conn, message, "Only bot owner / admins can change guardrail settings.");
+      await setGuardrailConfig({ enabled: false });
+      return await replyOk(conn, message, "⚠️ AI Prompt Injection Guardrails are now *DISABLED*.");
+    }
+
+    if (subCmd === "mode") {
+      if (!privileged) return await replyFail(conn, message, "Only bot owner / admins can change guardrail mode.");
+      const mode = arg.toLowerCase();
+      if (mode !== "strict" && mode !== "standard") {
+        return await replyFail(conn, message, `Usage: \`${BOT_INFO.PREFIX}agentguard mode <strict|standard>\``);
+      }
+      await setGuardrailConfig({ mode });
+      return await replyOk(
+        conn,
+        message,
+        `Guardrail sensitivity mode set to *${mode.toUpperCase()}* (threshold: ${mode === "strict" ? "40" : "60"}/100).`
+      );
+    }
+
+    if (subCmd === "logs") {
+      const logs = await getBlockedAttemptLogs(10);
+      if (!logs.length) {
+        return await reply(conn, message, "🛡️ *No prompt injection attempts recorded yet.*");
+      }
+      let text = `🛡️ *RECENT BLOCKED INJECTION INCIDENTS (${logs.length}):*\n\n`;
+      logs.forEach((l, i) => {
+        text += `*${i + 1}. [${new Date(l.timestamp).toLocaleTimeString()}] Score: ${l.score}/100*\n`;
+        text += `   • Sender: \`${l.sender}\`\n`;
+        text += `   • Reasons: ${l.matchedRules?.join(", ") || "N/A"}\n`;
+        text += `   • Snippet: "${l.promptSnippet}"\n\n`;
+      });
+      text += `_To clear logs: \`${BOT_INFO.PREFIX}agentguard clearlogs\`_`;
+      return await reply(conn, message, text);
+    }
+
+    if (subCmd === "clearlogs") {
+      if (!privileged) return await replyFail(conn, message, "Only bot owner / admins can clear security logs.");
+      await clearBlockedAttemptLogs();
+      return await replyOk(conn, message, "Guardrail incident logs cleared.");
+    }
+
+    if (subCmd === "test") {
+      if (!arg) return await replyFail(conn, message, `Usage: \`${BOT_INFO.PREFIX}agentguard test <sample prompt>\``);
+      const scan = scanPromptInjection(arg);
+      const cfg = await getGuardrailConfig();
+      const threshold = cfg.mode === "strict" ? 40 : 60;
+      const willBlock = cfg.enabled && scan.score >= threshold;
+
+      let text = `🛡️ *GUARDRAIL SCAN DRY RUN:*\n\n`;
+      text += `• *Status:* ${willBlock ? "🚨 *WOULD BE BLOCKED*" : "✅ *SAFE / ALLOWED*"}\n`;
+      text += `• *Score:* \`${scan.score}/100\` (Threshold: ${threshold})\n`;
+      text += `• *Active Mode:* \`${cfg.mode}\`\n`;
+      if (scan.reasons.length) {
+        text += `• *Detected Vectors:* ${scan.reasons.join(", ")}\n`;
+      }
+      if (scan.flaggedSnippets?.length) {
+        text += `• *Matched Patterns:* \`${scan.flaggedSnippets.join("`, `")}\`\n`;
+      }
+      return await reply(conn, message, text);
+    }
+
+    // Default: Show guardrail status overview
+    const cfg = await getGuardrailConfig();
+    const threshold = cfg.mode === "strict" ? 40 : 60;
+
+    let text = `🛡️ *AI PROMPT INJECTION GUARDRAILS*\n\n`;
+    text += `• *Guardrails Active:* ${cfg.enabled ? "✅ YES" : "❌ NO"}\n`;
+    text += `• *Sensitivity Mode:* \`${cfg.mode.toUpperCase()}\` (Score Threshold: ${threshold}/100)\n`;
+    text += `• *Direct Jailbreak Defense:* ${cfg.blockDirectJailbreaks ? "✅ Active" : "❌ Disabled"}\n`;
+    text += `• *System Leak Prevention:* ${cfg.blockSystemLeaks ? "✅ Active" : "❌ Disabled"}\n`;
+    text += `• *Roleplay / DAN Filter:* ${cfg.blockRoleplayBypasses ? "✅ Active" : "❌ Disabled"}\n`;
+    text += `• *Token Injection Filter:* ${cfg.blockTokenInjections ? "✅ Active" : "❌ Disabled"}\n`;
+    text += `• *Boundary Tag Sandboxing:* ${cfg.sanitizeBoundaries ? "✅ Active" : "❌ Disabled"}\n`;
+    text += `• *Output Secret Scrubber:* ${cfg.preventOutputLeaks ? "✅ Active" : "❌ Disabled"}\n`;
+    text += `• *Audit Logging:* ${cfg.logBlockedAttempts ? "✅ Active" : "❌ Disabled"}\n\n`;
+
+    text += `_Commands:_\n`;
+    text += `• \`${BOT_INFO.PREFIX}agentguard on\` / \`off\` — Toggle guardrails\n`;
+    text += `• \`${BOT_INFO.PREFIX}agentguard mode strict|standard\` — Set sensitivity\n`;
+    text += `• \`${BOT_INFO.PREFIX}agentguard logs\` — View blocked injection attempts\n`;
+    text += `• \`${BOT_INFO.PREFIX}agentguard clearlogs\` — Clear audit log\n`;
+    text += `• \`${BOT_INFO.PREFIX}agentguard test <prompt>\` — Test prompt against scanner`;
 
     return await reply(conn, message, text);
   }

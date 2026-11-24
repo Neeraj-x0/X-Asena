@@ -67,6 +67,24 @@ export function attachGroupParticipantEvents(conn) {
 
         if (logGroup) continue; // no welcome spam inside system group
 
+        // Anti-Foreign participant auto-kick
+        if (action === "add" && settings.antiforeign && settings.foreignCodes?.length) {
+          const userNum = String(mention).replace(/\D/g, "");
+          const isBlocked = settings.foreignCodes.some((c) => userNum.startsWith(String(c).replace(/\D/g, "")));
+          if (isBlocked) {
+            try {
+              await conn.groupParticipantsUpdate(groupJid, [mention], "remove");
+              await conn.sendMessage(groupJid, {
+                text: `🚫 *@${userNum}* was automatically removed (Prohibited country code).`,
+                mentions: [mention],
+              });
+              continue;
+            } catch {
+              /* ignore kick error */
+            }
+          }
+        }
+
         const tag = `@${String(mention).split("@")[0]}`;
 
         if (action === "add" && settings.welcome) {

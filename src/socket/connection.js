@@ -182,6 +182,9 @@ async function connect() {
         reconnectAttempt = 0;
         console.log("✅ Connected successfully!");
         startReminderScheduler(conn);
+        import("../plugins/automute.js")
+          .then(({ startAutoMuteScheduler }) => startAutoMuteScheduler?.(conn))
+          .catch(() => {});
 
         // System log group + onboarding (never DM the bot itself)
         setTimeout(async () => {

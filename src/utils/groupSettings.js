@@ -20,6 +20,12 @@ const DEFAULTS = {
   antidelete: false,
   muted: [],
   disabledPlugins: [],
+  wordFilter: false,
+  filteredWords: [],
+  antiforeign: false,
+  foreignCodes: [],
+  automute: null,
+  autounmute: null,
 };
 
 function key(jid) {
@@ -29,7 +35,14 @@ function key(jid) {
 export async function getGroupSettings(jid) {
   const raw = await kvGet(key(jid));
   if (!raw || typeof raw !== "object") return { ...DEFAULTS };
-  return { ...DEFAULTS, ...raw, muted: raw.muted || [], disabledPlugins: raw.disabledPlugins || [] };
+  return {
+    ...DEFAULTS,
+    ...raw,
+    muted: raw.muted || [],
+    disabledPlugins: raw.disabledPlugins || [],
+    filteredWords: raw.filteredWords || [],
+    foreignCodes: raw.foreignCodes || [],
+  };
 }
 
 export async function setGroupSettings(jid, patch) {

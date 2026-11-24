@@ -19,7 +19,7 @@ command(
     pattern: "save",
     fromMe: false,
     desc: "Save and download a contact's status to your PM",
-    type: "social",
+    type: "status",
   },
   async (message, conn) => {
     if (!message.quoted) {
@@ -96,7 +96,7 @@ command(
     pattern: "statussaver",
     fromMe: false,
     desc: "Alias for #save",
-    type: "social",
+    type: "status",
     dontAddCommandList: true,
   },
   async (message, conn) => {
@@ -112,7 +112,7 @@ command(
     pattern: "poststatus",
     fromMe: true,
     desc: "Post text or media to bot's WhatsApp Status",
-    type: "social",
+    type: "status",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);
@@ -186,7 +186,7 @@ command(
     pattern: "autostatus",
     fromMe: true,
     desc: "Configure auto-reading or auto-reacting to contact statuses",
-    type: "social",
+    type: "status",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);

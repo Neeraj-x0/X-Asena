@@ -16,7 +16,7 @@ command(
     pattern: "archive",
     fromMe: true,
     desc: "Archive the current chat",
-    type: "owner",
+    type: "chats",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);
@@ -36,7 +36,7 @@ command(
     pattern: "unarchive",
     fromMe: true,
     desc: "Unarchive the current chat",
-    type: "owner",
+    type: "chats",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);
@@ -57,7 +57,7 @@ command(
     pattern: "pinchat",
     fromMe: true,
     desc: "Pin this chat to the top of WhatsApp chat list",
-    type: "owner",
+    type: "chats",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);
@@ -77,7 +77,7 @@ command(
     pattern: "unpinchat",
     fromMe: true,
     desc: "Unpin this chat from the top of chat list",
-    type: "owner",
+    type: "chats",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);
@@ -98,7 +98,7 @@ command(
     pattern: "mutechat",
     fromMe: true,
     desc: "Mute chat notifications (8h|1w|always|unmute)",
-    type: "owner",
+    type: "chats",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);
@@ -132,7 +132,7 @@ command(
     pattern: "star",
     fromMe: false,
     desc: "Star a quoted message to bookmark it",
-    type: "misc",
+    type: "chats",
   },
   async (message, conn) => {
     if (!message.quoted) {
@@ -162,7 +162,7 @@ command(
     pattern: "unstar",
     fromMe: false,
     desc: "Unstar a quoted message",
-    type: "misc",
+    type: "chats",
   },
   async (message, conn) => {
     if (!message.quoted) {
@@ -192,7 +192,7 @@ command(
     pattern: "clearchat",
     fromMe: true,
     desc: "Clear chat messages in this conversation",
-    type: "owner",
+    type: "chats",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);

@@ -22,7 +22,7 @@ command(
     pattern: "pin",
     fromMe: false,
     desc: "Pin or unpin a quoted message (24h, 7d, 30d, unpin)",
-    type: "admin",
+    type: "chats",
   },
   async (message, conn) => {
     if (!message.quoted) {
@@ -80,7 +80,7 @@ command(
     pattern: "edit",
     fromMe: true,
     desc: "Edit a previously sent message from the bot",
-    type: "misc",
+    type: "chats",
   },
   async (message, conn) => {
     if (!message.quoted) {
@@ -121,7 +121,7 @@ command(
     pattern: "vcard",
     fromMe: false,
     desc: "Send a WhatsApp contact card (Name | Number or mention)",
-    type: "misc",
+    type: "tools",
   },
   async (message, conn) => {
     const raw = (getCommandArgs(message.body, "vcard") || "").trim();
@@ -178,7 +178,7 @@ command(
     pattern: "contact",
     fromMe: false,
     desc: "Alias for #vcard",
-    type: "misc",
+    type: "tools",
     dontAddCommandList: true,
   },
   async (message, conn) => {
@@ -194,7 +194,7 @@ command(
     pattern: "loc",
     fromMe: false,
     desc: "Share a location pin (latitude,longitude [Place Name])",
-    type: "misc",
+    type: "tools",
   },
   async (message, conn) => {
     const raw = (getCommandArgs(message.body, "loc") || "").trim();

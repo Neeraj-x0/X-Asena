@@ -10,7 +10,7 @@ command(
     pattern: "ping",
     fromMe: false,
     desc: "Check bot response time",
-    type: "misc",
+    type: "info",
   },
   async (message, conn) => {
     const start = Date.now();

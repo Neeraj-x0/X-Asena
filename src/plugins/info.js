@@ -12,7 +12,7 @@ command(
         pattern: "info",
         fromMe: false,
         desc: "Shows user and message information",
-        type: "misc",
+        type: "info",
     },
     async (message, conn) => {
         try {

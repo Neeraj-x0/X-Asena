@@ -15,7 +15,7 @@ command(
     pattern: "privacy",
     fromMe: true,
     desc: "Inspect or configure WhatsApp privacy settings",
-    type: "owner",
+    type: "security",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);
@@ -156,7 +156,7 @@ command(
     pattern: "getprivacy",
     fromMe: true,
     desc: "Fetch current account privacy settings",
-    type: "owner",
+    type: "security",
     dontAddCommandList: true,
   },
   async (message, conn) => {

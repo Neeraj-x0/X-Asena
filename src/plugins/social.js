@@ -231,7 +231,7 @@ command(
     pattern: "ig",
     fromMe: false,
     desc: "Download Instagram media (best-effort)",
-    type: "media",
+    type: "downloader",
   },
   igHandler
 );
@@ -241,7 +241,7 @@ command(
     pattern: "insta",
     fromMe: false,
     desc: "Alias for ig",
-    type: "media",
+    type: "downloader",
     dontAddCommandList: true,
   },
   igHandler
@@ -283,7 +283,7 @@ command(
     pattern: "tiktok",
     fromMe: false,
     desc: "Download TikTok video (best-effort)",
-    type: "media",
+    type: "downloader",
   },
   ttHandler
 );
@@ -293,7 +293,7 @@ command(
     pattern: "tt",
     fromMe: false,
     desc: "Alias for tiktok",
-    type: "media",
+    type: "downloader",
     dontAddCommandList: true,
   },
   ttHandler
@@ -304,7 +304,7 @@ command(
     pattern: "fb",
     fromMe: false,
     desc: "Download Facebook media (best-effort)",
-    type: "media",
+    type: "downloader",
   },
   async (message, conn) => {
     const url = pickUrl(message, ["fb"]);

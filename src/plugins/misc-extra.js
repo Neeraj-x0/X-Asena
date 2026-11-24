@@ -28,7 +28,7 @@ command(
     pattern: "lang",
     fromMe: false,
     desc: "Show/set bot language (en|id|hi)",
-    type: "misc",
+    type: "info",
   },
   async (message, conn) => {
     const args = (getCommandArgs(message.body, "lang") || "").trim().toLowerCase();

@@ -1,13 +1,48 @@
 /**
  * Menu / Help Command
+ * Categorized command browser and help explorer
  */
 
 import { command, getMenuCommands } from "../plugins.js";
-import { reply } from "../utils/message.js";
+import { reply, getCommandArgs } from "../utils/message.js";
 import { BOT_INFO } from "../config/constants.js";
 import { getMode } from "../utils/access.js";
 
-async function buildMenuText() {
+const CATEGORY_META = {
+  group: { title: "GROUP & MEMBERS", icon: "👥" },
+  admin: { title: "ADMIN & MODERATION", icon: "🛡️" },
+  security: { title: "SECURITY & PRIVACY", icon: "🔒" },
+  chats: { title: "CHAT CONTROLS", icon: "💬" },
+  presence: { title: "PRESENCE & GHOST", icon: "👁️" },
+  status: { title: "STATUS & STORIES", icon: "📱" },
+  downloader: { title: "DOWNLOADER", icon: "📥" },
+  media: { title: "MEDIA & CONVERTERS", icon: "🎨" },
+  tools: { title: "TOOLS & UTILITIES", icon: "🛠️" },
+  business: { title: "WHATSAPP BUSINESS", icon: "💼" },
+  social: { title: "CHANNELS & COMMUNITIES", icon: "🌐" },
+  owner: { title: "BOT OWNER & SYSTEM", icon: "⚡" },
+  info: { title: "INFO & HELP", icon: "ℹ️" },
+  misc: { title: "MISCELLANEOUS", icon: "✨" },
+};
+
+const TYPE_ORDER = [
+  "group",
+  "admin",
+  "security",
+  "chats",
+  "presence",
+  "status",
+  "downloader",
+  "media",
+  "tools",
+  "business",
+  "social",
+  "owner",
+  "info",
+  "misc",
+];
+
+async function buildMenuText(filterCategory = null) {
   const cmds = getMenuCommands();
   const byType = new Map();
 
@@ -17,11 +52,19 @@ async function buildMenuText() {
     byType.get(type).push(cmd);
   }
 
-  const typeOrder = ["misc", "info", "group", "admin", "owner", "media"];
-  const types = [
-    ...typeOrder.filter((t) => byType.has(t)),
-    ...[...byType.keys()].filter((t) => !typeOrder.includes(t)).sort(),
+  let types = [
+    ...TYPE_ORDER.filter((t) => byType.has(t)),
+    ...[...byType.keys()].filter((t) => !TYPE_ORDER.includes(t)).sort(),
   ];
+
+  if (filterCategory) {
+    const matched = types.filter(
+      (t) => t.toLowerCase() === filterCategory.toLowerCase()
+    );
+    if (matched.length > 0) {
+      types = matched;
+    }
+  }
 
   let lang = "en";
   try {
@@ -31,23 +74,6 @@ async function buildMenuText() {
     /* ignore */
   }
 
-  let text = `*${BOT_INFO.NAME}* v${BOT_INFO.VERSION}\n`;
-  text += `Prefix: \`${BOT_INFO.PREFIX}\` · Lang: \`${lang}\`\n\n`;
-
-  for (const type of types) {
-    const list = byType.get(type);
-    text += `*${type.toUpperCase()}*\n`;
-    for (const cmd of list.sort((a, b) =>
-      a.patternName.localeCompare(b.patternName)
-    )) {
-      const usage = `${BOT_INFO.PREFIX}${cmd.patternName}`;
-      text += `• ${usage}`;
-      if (cmd.desc) text += ` — ${cmd.desc}`;
-      text += `\n`;
-    }
-    text += `\n`;
-  }
-
   let mode = "public";
   try {
     mode = await getMode();
@@ -55,21 +81,51 @@ async function buildMenuText() {
     /* BotKV may not be ready */
   }
 
-  text += `_Mode: ${mode}_\n`;
-  text += `_Reply with a command to use it._`;
+  let text = `╭───『 *${BOT_INFO.NAME.toUpperCase()}* 』───╮\n`;
+  text += `│ • *Version:* v${BOT_INFO.VERSION}\n`;
+  text += `│ • *Prefix:* \`${BOT_INFO.PREFIX}\`\n`;
+  text += `│ • *Mode:* \`${mode}\`\n`;
+  text += `│ • *Commands:* \`${cmds.length}\`\n`;
+  text += `│ • *Language:* \`${lang}\`\n`;
+  text += `╰──────────────────────╯\n\n`;
+
+  for (const type of types) {
+    const list = byType.get(type) || [];
+    if (!list.length) continue;
+
+    const meta = CATEGORY_META[type] || {
+      title: type.toUpperCase(),
+      icon: "📌",
+    };
+
+    text += `*${meta.icon} ${meta.title} (${list.length})*\n`;
+    for (const cmd of list.sort((a, b) =>
+      a.patternName.localeCompare(b.patternName)
+    )) {
+      const usage = `${BOT_INFO.PREFIX}${cmd.patternName}`;
+      text += `  • \`${usage}\``;
+      if (cmd.desc) text += ` — ${cmd.desc}`;
+      text += `\n`;
+    }
+    text += `\n`;
+  }
+
+  text += `_💡 Filter by category: \`${BOT_INFO.PREFIX}menu <category>\`_\n`;
+  text += `_💡 Command details: \`${BOT_INFO.PREFIX}help <command>\`_`;
   return text;
 }
 
 async function sendMenu(message, conn) {
-  await reply(conn, message, await buildMenuText());
+  const arg = (getCommandArgs(message.body, "menu") || "").trim().toLowerCase();
+  await reply(conn, message, await buildMenuText(arg || null));
 }
 
 command(
   {
     pattern: "menu",
     fromMe: false,
-    desc: "Show all commands",
-    type: "misc",
+    desc: "Show all commands or filter by category",
+    type: "info",
   },
   sendMenu
 );
@@ -79,7 +135,7 @@ command(
     pattern: "help",
     fromMe: false,
     desc: "Show menu or help for one command",
-    type: "misc",
+    type: "info",
     dontAddCommandList: true,
   },
   async (message, conn) => {
@@ -113,16 +169,16 @@ command(
       return;
     }
 
+    const meta = CATEGORY_META[hit.type] || { title: hit.type?.toUpperCase() || "MISC", icon: "📌" };
+
     await reply(
       conn,
       message,
       `*${BOT_INFO.PREFIX}${hit.patternName}*\n` +
-        `${hit.desc || "_No description_"}\n` +
-        `Type: ${hit.type}` +
-        (hit.groupOnly ? " · group" : "") +
-        (hit.adminOnly ? " · admin" : "") +
-        (hit.fromMe ? " · owner" : "")
+        `${hit.desc || "_No description_"}\n\n` +
+        `• *Category:* ${meta.icon} ${meta.title}\n` +
+        `• *Scope:* ${hit.groupOnly ? "Group Only" : "All Chats"}\n` +
+        `• *Permission:* ${hit.fromMe ? "Bot Owner" : hit.adminOnly ? "Group Admin" : "Everyone"}`
     );
   }
 );
-

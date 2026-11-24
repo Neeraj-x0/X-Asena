@@ -350,7 +350,7 @@ command(
     pattern: "antidelete",
     fromMe: false,
     desc: "Toggle/set Anti-Delete message recovery (on/off/pm)",
-    type: "admin",
+    type: "security",
   },
   async (message, conn) => {
     const rawArgs = (getCommandArgs(message.body, "antidelete") || "").trim().toLowerCase();

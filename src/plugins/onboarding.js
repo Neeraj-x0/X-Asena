@@ -179,7 +179,7 @@ command(
     pattern: "status",
     fromMe: false,
     desc: "Bot health status",
-    type: "misc",
+    type: "info",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);

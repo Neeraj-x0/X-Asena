@@ -372,7 +372,7 @@ command(
     pattern: "yt",
     fromMe: false,
     desc: "YouTube info / usage",
-    type: "media",
+    type: "downloader",
   },
   async (message, conn) => {
     const query = pickQuery(message, "yt");
@@ -415,7 +415,7 @@ command(
     pattern: "ytdl",
     fromMe: false,
     desc: "Alias for yt",
-    type: "media",
+    type: "downloader",
     dontAddCommandList: true,
   },
   async (message, conn) => {
@@ -445,7 +445,7 @@ command(
     pattern: "ytmp3",
     fromMe: false,
     desc: "Download YouTube audio (mp3)",
-    type: "media",
+    type: "downloader",
   },
   async (message, conn) => {
     const query = pickQuery(message, "ytmp3");
@@ -476,7 +476,7 @@ command(
     pattern: "ytmp4",
     fromMe: false,
     desc: "Download YouTube video ≤720p",
-    type: "media",
+    type: "downloader",
   },
   async (message, conn) => {
     const query = pickQuery(message, "ytmp4");
@@ -507,7 +507,7 @@ command(
     pattern: "play",
     fromMe: false,
     desc: "Search YouTube and play first audio",
-    type: "media",
+    type: "downloader",
   },
   async (message, conn) => {
     const query = pickQuery(message, "play");

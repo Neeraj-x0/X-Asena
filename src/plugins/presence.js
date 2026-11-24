@@ -17,7 +17,7 @@ command(
     pattern: "online",
     fromMe: true,
     desc: "Set bot presence to Online (Available)",
-    type: "owner",
+    type: "presence",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);
@@ -39,7 +39,7 @@ command(
     pattern: "offline",
     fromMe: true,
     desc: "Set bot presence to Offline (Unavailable)",
-    type: "owner",
+    type: "presence",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);
@@ -61,7 +61,7 @@ command(
     pattern: "typing",
     fromMe: false,
     desc: "Simulate typing indicator in current chat for 5 seconds",
-    type: "misc",
+    type: "presence",
   },
   async (message, conn) => {
     try {
@@ -82,7 +82,7 @@ command(
     pattern: "recording",
     fromMe: false,
     desc: "Simulate audio recording indicator in current chat for 5 seconds",
-    type: "misc",
+    type: "presence",
   },
   async (message, conn) => {
     try {
@@ -103,7 +103,7 @@ command(
     pattern: "autotyping",
     fromMe: true,
     desc: "Toggle automatic typing presence before command responses (on|off)",
-    type: "owner",
+    type: "presence",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);

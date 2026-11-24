@@ -52,7 +52,7 @@ command(
     pattern: "business",
     fromMe: true,
     desc: "Configure WhatsApp Business features authorization",
-    type: "owner",
+    type: "business",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);
@@ -99,7 +99,7 @@ command(
     pattern: "catalog",
     fromMe: false,
     desc: "View product catalog of a business account",
-    type: "tools",
+    type: "business",
   },
   async (message, conn) => {
     const safety = await verifyBusinessAccountSafety(conn);
@@ -151,7 +151,7 @@ command(
     pattern: "collections",
     fromMe: false,
     desc: "View product collections of a business account",
-    type: "tools",
+    type: "business",
   },
   async (message, conn) => {
     const safety = await verifyBusinessAccountSafety(conn);
@@ -201,7 +201,7 @@ command(
     pattern: "setbiz",
     fromMe: true,
     desc: "Update business profile fields (address|email|desc|website)",
-    type: "owner",
+    type: "business",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);
@@ -254,7 +254,7 @@ command(
     pattern: "coverphoto",
     fromMe: true,
     desc: "Upload or remove WhatsApp Business cover photo from quoted image",
-    type: "owner",
+    type: "business",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);

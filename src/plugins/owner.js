@@ -195,7 +195,7 @@ command(
     pattern: "block",
     fromMe: true,
     desc: "Block a user from contacting the bot",
-    type: "owner",
+    type: "security",
   },
   async (message, conn) => {
     let target = resolveTargetUser(message);
@@ -218,7 +218,7 @@ command(
     pattern: "unblock",
     fromMe: true,
     desc: "Unblock a user",
-    type: "owner",
+    type: "security",
   },
   async (message, conn) => {
     let target = resolveTargetUser(message);
@@ -241,7 +241,7 @@ command(
     pattern: "blocklist",
     fromMe: true,
     desc: "View the list of blocked WhatsApp users",
-    type: "owner",
+    type: "security",
   },
   async (message, conn) => {
     try {

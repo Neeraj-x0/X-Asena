@@ -16,7 +16,7 @@ command(
     pattern: "anticall",
     fromMe: true,
     desc: "Configure auto-rejection or blocking for incoming WhatsApp calls",
-    type: "owner",
+    type: "security",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);

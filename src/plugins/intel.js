@@ -235,7 +235,7 @@ command(
     pattern: "join",
     fromMe: true,
     desc: "Join a group using an invite link",
-    type: "owner",
+    type: "tools",
   },
   async (message, conn) => {
     const privileged = await isPrivileged(message, conn);

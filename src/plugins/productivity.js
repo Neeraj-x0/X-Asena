@@ -25,7 +25,7 @@ command(
     pattern: "note",
     fromMe: false,
     desc: "Save/get/delete personal notes",
-    type: "misc",
+    type: "tools",
   },
   async (message, conn) => {
     const raw = (getCommandArgs(message.body, "note") || "").trim();
@@ -116,7 +116,7 @@ command(
     pattern: "remind",
     fromMe: false,
     desc: "Set a reminder (e.g. 10m buy milk)",
-    type: "misc",
+    type: "tools",
   },
   async (message, conn) => {
     const raw = (getCommandArgs(message.body, "remind") || "").trim();
@@ -160,7 +160,7 @@ command(
     pattern: "reminders",
     fromMe: false,
     desc: "List pending reminders in this chat",
-    type: "misc",
+    type: "tools",
   },
   async (message, conn) => {
     const list = await listReminders(message.from);
@@ -186,7 +186,7 @@ command(
     pattern: "cancelremind",
     fromMe: false,
     desc: "Cancel reminder by id",
-    type: "misc",
+    type: "tools",
   },
   async (message, conn) => {
     const id = (getCommandArgs(message.body, "cancelremind") || "").trim();
@@ -208,7 +208,7 @@ command(
     pattern: "poll",
     fromMe: false,
     desc: "Create a poll: question | opt1 | opt2",
-    type: "misc",
+    type: "tools",
   },
   async (message, conn) => {
     const raw = (getCommandArgs(message.body, "poll") || "").trim();

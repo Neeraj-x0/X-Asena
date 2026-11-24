@@ -21,7 +21,7 @@ command(
     pattern: "vv",
     fromMe: false,
     desc: "Recover and reveal a View-Once image, video, or voice note",
-    type: "media",
+    type: "security",
   },
   async (message, conn) => {
     const rawArgs = (getCommandArgs(message.body, "vv") || "").trim().toLowerCase();
@@ -113,7 +113,7 @@ command(
     pattern: "antiviewonce",
     fromMe: false,
     desc: "Alias for #vv (Recover View-Once media)",
-    type: "media",
+    type: "security",
     dontAddCommandList: true,
   },
   async (message, conn) => {

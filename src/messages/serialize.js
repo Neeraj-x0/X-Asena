@@ -91,6 +91,28 @@ function extractQuotedMessage(contextInfo) {
 
     const q = normalizeQuoted(content, mime, quotedKey, unwrapped);
     q.isViewOnce = isViewOnce;
+
+    // Attach rich LID/PN sender metadata to quoted message
+    const rawParticipant = contextInfo.participant || contextInfo.remoteJid || null;
+    const rawParticipantAlt = contextInfo.participantAlt || null;
+
+    let quotedPn = null;
+    let quotedLid = null;
+
+    if (rawParticipant?.endsWith("@s.whatsapp.net")) quotedPn = rawParticipant;
+    else if (rawParticipant?.endsWith("@lid")) quotedLid = rawParticipant;
+
+    if (rawParticipantAlt?.endsWith("@s.whatsapp.net")) quotedPn = rawParticipantAlt;
+    else if (rawParticipantAlt?.endsWith("@lid")) quotedLid = rawParticipantAlt;
+
+    q.participant = rawParticipant;
+    q.participantAlt = rawParticipantAlt;
+    q.sender = quotedPn || quotedLid || rawParticipant;
+    q.senderPn = quotedPn;
+    q.senderLid = quotedLid;
+    q.isLid = Boolean(rawParticipant?.endsWith("@lid"));
+    q.phoneNumber = quotedPn ? quotedPn.replace(/@s\.whatsapp\.net$/, "") : null;
+
     return q;
 }
 
@@ -122,30 +144,56 @@ function normalizeQuoted(content, mime, messageTypeKey, raw) {
 }
 
 /**
- * Determines sender information with LID/PN support.
+ * Determines sender information with explicit LID vs PN JID differentiation.
  */
 function getSenderInfo(key, isGroup, conn) {
-    const isBotMessage = key.fromMe && !key.participant;
+    const isBotMessage = Boolean(key.fromMe && !key.participant);
 
-    if (isGroup) {
-        const participant = key.participant || null;
-        const participantAlt = key.participantAlt || null;
+    const rawPrimary = isGroup ? (key.participant || null) : key.remoteJid;
+    const rawAlt = isGroup ? (key.participantAlt || null) : (key.remoteJidAlt || null);
 
-        const sender = isBotMessage
-            ? conn.user?.id
-            : (participantAlt || participant);
+    let senderPn = null;
+    let senderLid = null;
 
-        return { participant, participantAlt, sender, isBotMessage };
-    } else {
-        const participant = key.remoteJid;
-        const participantAlt = key.remoteJidAlt || null;
-
-        const sender = key.fromMe
-            ? conn.user?.id
-            : (participantAlt || participant);
-
-        return { participant, participantAlt, sender, isBotMessage };
+    if (rawPrimary?.endsWith("@s.whatsapp.net")) {
+        senderPn = rawPrimary;
+    } else if (rawPrimary?.endsWith("@lid")) {
+        senderLid = rawPrimary;
     }
+
+    if (rawAlt?.endsWith("@s.whatsapp.net")) {
+        senderPn = rawAlt;
+    } else if (rawAlt?.endsWith("@lid")) {
+        senderLid = rawAlt;
+    }
+
+    if (isBotMessage) {
+        if (conn?.user?.id) {
+            senderPn = conn.user.id.replace(/:\d+@/, "@").replace(/@s\.whatsapp\.net/, "") + "@s.whatsapp.net";
+        }
+        if (conn?.user?.lid) {
+            senderLid = conn.user.lid;
+        }
+    }
+
+    // sender prefers real PN JID for all plugins, fallback to LID, fallback to primary
+    const sender = isBotMessage
+        ? (conn?.user?.id || senderPn || senderLid)
+        : (senderPn || senderLid || rawPrimary);
+
+    const isLid = Boolean(rawPrimary?.endsWith("@lid"));
+    const phoneNumber = senderPn ? senderPn.replace(/@s\.whatsapp\.net$/, "") : null;
+
+    return {
+        participant: rawPrimary,
+        participantAlt: rawAlt,
+        sender,
+        senderPn,
+        senderLid,
+        isLid,
+        phoneNumber,
+        isBotMessage,
+    };
 }
 
 /**
@@ -167,7 +215,16 @@ async function serialize(message, conn) {
     const from = key.remoteJid;
     const fromAlt = key.remoteJidAlt || null;
 
-    const { participant, participantAlt, sender, isBotMessage } = getSenderInfo(key, isGroup, conn);
+    const {
+        participant,
+        participantAlt,
+        sender,
+        senderPn,
+        senderLid,
+        isLid,
+        phoneNumber,
+        isBotMessage,
+    } = getSenderInfo(key, isGroup, conn);
 
     const contextInfo = messageContent?.contextInfo;
     const quoted = extractQuotedMessage(contextInfo);
@@ -201,6 +258,10 @@ async function serialize(message, conn) {
         participant,
         participantAlt,
         sender,
+        senderPn,
+        senderLid,
+        isLid,
+        phoneNumber,
         isBotMessage,
     };
 }

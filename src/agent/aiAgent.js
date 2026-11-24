@@ -10,6 +10,7 @@ import { kvGet, kvSet } from "../database/botKv.js";
 import { groupCache } from "../utils/cache.js";
 import { isAdmin, isBotAdmin, displayId } from "../utils/group.js";
 import { isPrivileged, normalizeNumber } from "../utils/access.js";
+import { isLidUser, isPnUser } from "../functions.js";
 import { BOT_INFO } from "../config/constants.js";
 import {
   addMessageToHistory,
@@ -635,13 +636,22 @@ export async function executeAgentTool(name, args, context) {
       groupCache.set(groupJid, meta);
     }
     const members = (meta.participants || []).map((p) => {
-      const jid = p.id;
-      const phoneNumber = normalizeNumber(jid);
+      const isLid = isLidUser(p.id);
+      const pnJid = p.phoneNumber
+        ? `${p.phoneNumber.replace(/\D/g, "")}@s.whatsapp.net`
+        : (isPnUser(p.id) ? p.id : null);
+      const lidJid = p.lid || (isLid ? p.id : null);
+      const phoneNumber = p.phoneNumber
+        ? p.phoneNumber.replace(/\D/g, "")
+        : (pnJid ? normalizeNumber(pnJid) : "");
       return {
-        jid,
+        jid: pnJid || p.id,
+        pnJid,
+        lidJid,
+        isLid,
         phoneNumber,
         isAdmin: p.admin === "admin" || p.admin === "superadmin",
-        digitSum: getDigitSum(phoneNumber),
+        digitSum: phoneNumber ? getDigitSum(phoneNumber) : 0,
       };
     });
     return {
@@ -670,11 +680,25 @@ export async function executeAgentTool(name, args, context) {
     } = args;
 
     const all = (meta.participants || []).map((p) => {
-      const jid = p.id;
-      const phoneNumber = normalizeNumber(jid);
+      const isLid = isLidUser(p.id);
+      const pnJid = p.phoneNumber
+        ? `${p.phoneNumber.replace(/\D/g, "")}@s.whatsapp.net`
+        : (isPnUser(p.id) ? p.id : null);
+      const lidJid = p.lid || (isLid ? p.id : null);
+      const phoneNumber = p.phoneNumber
+        ? p.phoneNumber.replace(/\D/g, "")
+        : (pnJid ? normalizeNumber(pnJid) : "");
       const isAdm = p.admin === "admin" || p.admin === "superadmin";
-      const digitSum = getDigitSum(phoneNumber);
-      return { jid, phoneNumber, isAdmin: isAdm, digitSum };
+      const digitSum = phoneNumber ? getDigitSum(phoneNumber) : 0;
+      return {
+        jid: pnJid || p.id,
+        pnJid,
+        lidJid,
+        isLid,
+        phoneNumber,
+        isAdmin: isAdm,
+        digitSum,
+      };
     });
 
     const filtered = all.filter((p) => {
@@ -885,6 +909,7 @@ export async function executeAgentTool(name, args, context) {
       recipient: args.recipient,
       text: args.text,
       callerJid,
+      context,
     });
     return res;
   }
@@ -896,6 +921,7 @@ export async function executeAgentTool(name, args, context) {
       recipients: args.recipients,
       text: args.text,
       callerJid,
+      context,
     });
     return res;
   }
@@ -1147,6 +1173,8 @@ export async function runAgentPrompt({ prompt, message, conn }) {
   const isGroup = Boolean(message.isGroup);
   const groupJid = isGroup ? message.from : null;
   const callerJid = message.sender || message.participant;
+  const callerPn = message.senderPn || (isPnUser(callerJid) ? callerJid : null);
+  const callerLid = message.senderLid || (isLidUser(callerJid) ? callerJid : null);
 
   let meta = null;
   let callerAdmin = false;
@@ -1175,6 +1203,9 @@ export async function runAgentPrompt({ prompt, message, conn }) {
     conn,
     groupJid,
     callerJid,
+    callerPn,
+    callerLid,
+    meta,
     isGroup,
     callerAdmin,
     botAdmin,
@@ -1235,7 +1266,7 @@ export async function runAgentPrompt({ prompt, message, conn }) {
     `Current System Time: ${new Date().toLocaleString()} (ISO: ${new Date().toISOString()})\n` +
     `Active Persona Profile: [${persona.name}]\n` +
     `Chat Context: ${isGroup ? `Group (${meta?.subject || groupJid})` : "Direct Message"} [${message.from}]\n` +
-    `Caller: ${callerJid} (${callerAdmin ? "ADMIN / OWNER" : "REGULAR PARTICIPANT"})\n` +
+    `Caller: ${callerPn || callerJid} ${callerLid ? `[LID: ${callerLid}]` : ""} (${callerAdmin ? "ADMIN / OWNER" : "REGULAR PARTICIPANT"})\n` +
     `Bot Privileges: ${botAdmin ? "GROUP ADMIN (Has full management rights)" : "REGULAR MEMBER"}\n\n`;
 
   if (persona.prompt) {
@@ -1289,7 +1320,11 @@ export async function runAgentPrompt({ prompt, message, conn }) {
     `    • If asked to send abusive words, state: "Additionally, I cannot send messages containing profanity or abusive language (\\"myr\\"). If you would like me to schedule a polite message or reminder after 2 minutes, let me know!"\n` +
     `17. WhatsApp Ban Prevention & Anti-Spam Safety:\n` +
     `    • Never spam messages to so many people at the same time or blast rapid unpaced messages. WhatsApp may ban the phone number.\n` +
-    `    • The system automatically spaces sends with human-like typing delays (composing indicator) to protect the account.\n`;
+    `    • The system automatically spaces sends with human-like typing delays (composing indicator) to protect the account.\n` +
+    `18. WhatsApp LID vs Phone Number (PN) Differentiation:\n` +
+    `    • WhatsApp has two distinct user identifier formats: Phone Number JID (<phone>@s.whatsapp.net) and LID (<id>@lid).\n` +
+    `    • An LID is an internal WhatsApp privacy identity, NOT a phone number. NEVER append @s.whatsapp.net to LID digits.\n` +
+    `    • When sending direct messages, you can target phone numbers, pass 'caller', or pass the raw LID if the phone number is hidden.\n`;
 
   // Multi-Modal Vision: Check if an image is attached or quoted
   let imageBase64 = null;

@@ -74,24 +74,53 @@ function pruneTimestamps(arr, now) {
 }
 
 /**
- * Resolve phone number, raw string, or mention to a clean WhatsApp JID
+ * Resolve phone number, raw string, mention, or LID to a clean WhatsApp JID.
+ * Properly differentiates between Phone Number JIDs (@s.whatsapp.net) and LIDs (@lid).
+ * NEVER converts an arbitrary LID into an invalid @s.whatsapp.net address.
  */
-export function resolveTargetJid(recipient, callerJid = null) {
+export async function resolveTargetJid(recipient, context = {}) {
   if (!recipient || typeof recipient !== "string") return null;
-  const raw = recipient.trim().toLowerCase();
+  let raw = recipient.trim();
 
-  if (raw === "caller" || raw === "me" || raw === "sender") {
-    return callerJid || null;
+  // 1. Resolve 'caller' / 'me' / 'sender'
+  if (/^(caller|me|sender)$/i.test(raw)) {
+    if (context.callerPn) return context.callerPn;
+    if (context.senderPn) return context.senderPn;
+    if (context.callerJid && !context.callerJid.endsWith("@lid")) return context.callerJid;
+    raw = context.callerJid || context.sender || "";
   }
 
-  // Already a full JID
-  if (raw.endsWith("@s.whatsapp.net") || raw.endsWith("@g.us")) {
+  // 2. If it's a group JID, return as-is
+  if (raw.endsWith("@g.us")) {
     return raw;
   }
 
-  const cleaned = normalizeNumber(raw);
-  if (!cleaned || cleaned.length < 5) return null;
-  return `${cleaned}@s.whatsapp.net`;
+  // 3. Resolve using resolveUserIdentifiers
+  const { resolveUserIdentifiers } = await import("../utils/lid.js");
+  const resolved = await resolveUserIdentifiers(raw, {
+    conn: context.conn,
+    groupMetadata: context.meta || context.groupMetadata,
+    alt: context.callerPn || context.senderPn || context.participantAlt,
+  });
+
+  // Prefer verified phone number JID (@s.whatsapp.net)
+  if (resolved.pnJid) {
+    return resolved.pnJid;
+  }
+
+  // If it's a LID that could not be mapped to a phone number, keep it as @lid!
+  // CRITICAL: NEVER convert an LID to @s.whatsapp.net!
+  if (resolved.lidJid) {
+    return resolved.lidJid;
+  }
+
+  // Raw digits
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length >= 6) {
+    return `${digits}@s.whatsapp.net`;
+  }
+
+  return null;
 }
 
 /**
@@ -197,12 +226,19 @@ export async function safeDispatchDirectMessage({
   recipient,
   text,
   callerJid = null,
+  context = {},
 }) {
-  const targetJid = resolveTargetJid(recipient, callerJid);
-  if (!targetJid || !targetJid.endsWith("@s.whatsapp.net")) {
+  const targetJid = await resolveTargetJid(recipient, {
+    conn,
+    callerJid,
+    callerPn: context.callerPn || context.senderPn,
+    meta: context.meta || context.groupMetadata,
+  });
+
+  if (!targetJid || (!targetJid.endsWith("@s.whatsapp.net") && !targetJid.endsWith("@lid"))) {
     return {
       success: false,
-      error: `INVALID RECIPIENT: Could not resolve "${recipient}" to a valid WhatsApp user JID. Provide a valid phone number with country code.`,
+      error: `INVALID RECIPIENT: Could not resolve "${recipient}" to a valid WhatsApp user JID or LID. Provide a valid phone number with country code.`,
     };
   }
 
@@ -293,6 +329,7 @@ export async function safeDispatchBatchDms({
   recipients,
   text,
   callerJid = null,
+  context = {},
 }) {
   if (!Array.isArray(recipients) || !recipients.length) {
     return { success: false, error: "No recipients provided for batch DM." };
@@ -324,6 +361,7 @@ export async function safeDispatchBatchDms({
       recipient: target,
       text,
       callerJid,
+      context,
     });
 
     results.push({ recipient: target, ...res });

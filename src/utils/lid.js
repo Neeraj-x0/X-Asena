@@ -117,3 +117,106 @@ export function normalizeUserIdentifier(messageKey, isGroup = false) {
     // Otherwise fall back to the main identifier (might be LID)
     return getPreferredIdentifier(messageKey);
 }
+
+/**
+ * Differentiate and resolve any WhatsApp identifier into its constituent PN and LID formats.
+ * Prevents incorrectly appending @s.whatsapp.net to LID digits.
+ *
+ * @param {string} userRef - Identifier (e.g. '1234567890@s.whatsapp.net', '23456789012345@lid', or raw phone number)
+ * @param {object} [context] - Optional context: { conn, groupMetadata, alt }
+ * @returns {Promise<{
+ *   pnJid: string|null,
+ *   lidJid: string|null,
+ *   phoneNumber: string|null,
+ *   isLid: boolean,
+ *   isPn: boolean,
+ *   preferredJid: string,
+ * }>}
+ */
+export async function resolveUserIdentifiers(userRef, context = {}) {
+    const { conn, groupMetadata, alt } = context;
+    if (!userRef || typeof userRef !== "string") {
+        return {
+            pnJid: null,
+            lidJid: null,
+            phoneNumber: null,
+            isLid: false,
+            isPn: false,
+            preferredJid: null,
+        };
+    }
+
+    const clean = userRef.trim();
+    let pnJid = null;
+    let lidJid = null;
+
+    // 1. If explicit alt is passed
+    if (alt && typeof alt === "string") {
+        if (alt.endsWith("@s.whatsapp.net")) pnJid = alt;
+        else if (alt.endsWith("@lid")) lidJid = alt;
+    }
+
+    // 2. Classify primary userRef
+    if (clean.endsWith("@s.whatsapp.net")) {
+        pnJid = clean;
+    } else if (clean.endsWith("@lid")) {
+        lidJid = clean;
+    } else if (!clean.includes("@")) {
+        // Pure numeric string / phone number e.g. "+63 912 345 6789" or "919876543210"
+        const digits = clean.replace(/\D/g, "");
+        if (digits.length >= 6) {
+            pnJid = `${digits}@s.whatsapp.net`;
+        }
+    }
+
+    // 3. Resolve missing side using groupMetadata if available
+    if (groupMetadata?.participants) {
+        for (const p of groupMetadata.participants) {
+            const match =
+                (lidJid && (p.lid === lidJid || p.id === lidJid)) ||
+                (pnJid && (p.id === pnJid || p.phoneNumber === pnJid.replace(/@s\.whatsapp\.net$/, "")));
+
+            if (match) {
+                if (!lidJid && p.lid) lidJid = p.lid;
+                if (!pnJid) {
+                    if (p.phoneNumber) pnJid = `${p.phoneNumber.replace(/\D/g, "")}@s.whatsapp.net`;
+                    else if (p.id?.endsWith("@s.whatsapp.net")) pnJid = p.id;
+                }
+                break;
+            }
+        }
+    }
+
+    // 4. Resolve missing side using Baileys signalRepository LID mapping if available
+    if (conn?.signalRepository?.lidMapping) {
+        try {
+            if (lidJid && !pnJid) {
+                const mappedPn = await conn.signalRepository.lidMapping.getPNForLID(lidJid);
+                if (mappedPn) {
+                    pnJid = mappedPn.endsWith("@s.whatsapp.net") ? mappedPn : `${mappedPn.replace(/\D/g, "")}@s.whatsapp.net`;
+                }
+            } else if (pnJid && !lidJid) {
+                const mappedLid = await conn.signalRepository.lidMapping.getLIDForPN(pnJid);
+                if (mappedLid) {
+                    lidJid = mappedLid.endsWith("@lid") ? mappedLid : `${mappedLid}@lid`;
+                }
+            }
+        } catch {
+            /* ignore mapping lookup error */
+        }
+    }
+
+    const isLid = Boolean(clean.endsWith("@lid"));
+    const isPn = Boolean(clean.endsWith("@s.whatsapp.net") || (!clean.includes("@") && pnJid));
+    const phoneNumber = pnJid ? pnJid.replace(/@s\.whatsapp\.net$/, "") : null;
+    const preferredJid = pnJid || lidJid || clean;
+
+    return {
+        pnJid,
+        lidJid,
+        phoneNumber,
+        isLid,
+        isPn,
+        preferredJid,
+    };
+}

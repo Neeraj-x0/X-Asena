@@ -47,6 +47,10 @@ export async function messageHandler(params) {
 
     if (!message.body.startsWith(BOT_INFO.PREFIX)) {
       try {
+        const { handleAdminConfirmation } = await import("../agent/agentGuardrails.js");
+        const confirmed = await handleAdminConfirmation({ message, conn });
+        if (confirmed) return;
+
         const { checkAndHandleAgentTrigger } = await import("../agent/aiAgent.js");
         const handled = await checkAndHandleAgentTrigger({ message, conn });
         if (handled) return;

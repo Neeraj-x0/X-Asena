@@ -455,6 +455,122 @@ export const AGENT_TOOLS = [
       },
     },
   },
+
+  // ==================== SUBAGENT SWARM & PLANNING TOOLS ====================
+  {
+    type: "function",
+    function: {
+      name: "delegate_subtask",
+      description: "Delegate a specialized sub-task to an autonomous subagent role (researcher, coder, moderator, summarizer, analyst).",
+      parameters: {
+        type: "object",
+        properties: {
+          role: {
+            type: "string",
+            enum: ["researcher", "coder", "moderator", "summarizer", "analyst"],
+            description: "Specialist role for the subagent",
+          },
+          taskPrompt: { type: "string", description: "Instruction for the subagent" },
+        },
+        required: ["role", "taskPrompt"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_plan",
+      description: "Create a multi-step execution plan for complex tasks and display the live checklist in chat.",
+      parameters: {
+        type: "object",
+        properties: {
+          goal: { type: "string", description: "The overarching goal" },
+          steps: {
+            type: "array",
+            items: { type: "string" },
+            description: "List of step titles to execute sequentially",
+          },
+        },
+        required: ["goal", "steps"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_plan_progress",
+      description: "Update the status of a step in the active plan (completed, in_progress, failed) and stream live progress.",
+      parameters: {
+        type: "object",
+        properties: {
+          planId: { type: "string", description: "Plan ID returned by create_plan" },
+          stepNumber: { type: "number", description: "Step number to update (1-based)" },
+          status: { type: "string", enum: ["in_progress", "completed", "failed"] },
+          note: { type: "string", description: "Optional brief detail on what was accomplished" },
+        },
+        required: ["planId", "stepNumber", "status"],
+      },
+    },
+  },
+
+  // ==================== CHAT RETRIEVAL & KNOWLEDGE BASE TOOLS ====================
+  {
+    type: "function",
+    function: {
+      name: "search_chat_messages",
+      description: "Search backwards through the chat's message history to find previous statements, links, dates, or discussions.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Text or keyword to search in past messages" },
+          limit: { type: "number", description: "Maximum messages to return (default: 5)" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "analyze_chat_activity",
+      description: "Analyze recent chat activity: identify most active participants, message volume, and engagement.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_to_knowledge_base",
+      description: "Add a verified article, policy, FAQ, or documentation into the chat's persistent Knowledge Base (RAG).",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Article title" },
+          content: { type: "string", description: "Full factual content" },
+          category: { type: "string", description: "Category (e.g. 'rules', 'faq', 'support')" },
+        },
+        required: ["title", "content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "query_knowledge_base",
+      description: "Query the verified Knowledge Base (RAG) for answers to community FAQs, rules, or product specs.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Question or topic to query" },
+        },
+        required: ["query"],
+      },
+    },
+  },
 ];
 
 /**
@@ -563,6 +679,23 @@ export async function executeAgentTool(name, args, context) {
 
     if (!validTargets.length) {
       return { error: "No valid participants to remove." };
+    }
+
+    // Safety guardrail for mass actions affecting > 3 members
+    if (validTargets.length > 3) {
+      const { registerPendingAction } = await import("./agentGuardrails.js");
+      const guard = await registerPendingAction({
+        actionName: "kick_members",
+        details: `Mass removal of ${validTargets.length} participants (${args.reason || "criteria matched"}).`,
+        impactedCount: validTargets.length,
+        payload: { members: validTargets },
+        context,
+      });
+      return {
+        pendingConfirmation: true,
+        guardId: guard.confirmId,
+        message: `Safety guardrail triggered: removing ${validTargets.length} members at once requires human confirmation. Please ask an admin to reply 'CONFIRM' within 3 minutes to proceed.`,
+      };
     }
 
     try {
@@ -830,6 +963,95 @@ export async function executeAgentTool(name, args, context) {
     }
   }
 
+  // ==================== SUBAGENT SWARM & PLANNING EXECUTIONS ====================
+  if (name === "delegate_subtask") {
+    const { executeSubagentTask } = await import("./agentSubagents.js");
+    const res = await executeSubagentTask({
+      role: args.role,
+      taskPrompt: args.taskPrompt,
+      parentContext: context,
+    });
+    return res;
+  }
+
+  if (name === "create_plan") {
+    const { createPlan } = await import("./agentPlanning.js");
+    const res = await createPlan({
+      goal: args.goal,
+      steps: args.steps,
+      chatJid: groupJid || message.from,
+      conn,
+    });
+    return { success: true, planId: res.planId, checklist: res.plan.steps };
+  }
+
+  if (name === "update_plan_progress") {
+    const { updatePlanStep } = await import("./agentPlanning.js");
+    const res = await updatePlanStep({
+      planId: args.planId,
+      stepNumber: args.stepNumber,
+      status: args.status,
+      note: args.note,
+      chatJid: groupJid || message.from,
+      conn,
+    });
+    return res;
+  }
+
+  // ==================== CHAT RETRIEVAL & KNOWLEDGE BASE EXECUTIONS ====================
+  if (name === "search_chat_messages") {
+    const { getChatHistory } = await import("./agentMemory.js");
+    const historyText = getChatHistory(groupJid || message.from, 25);
+    const lines = historyText.split("\n");
+    const q = String(args.query || "").toLowerCase();
+    const matched = lines.filter((l) => l.toLowerCase().includes(q)).slice(0, args.limit || 5);
+    return {
+      query: args.query,
+      foundCount: matched.length,
+      messages: matched.length ? matched : "No messages matched the search query.",
+    };
+  }
+
+  if (name === "analyze_chat_activity") {
+    const { getChatHistory } = await import("./agentMemory.js");
+    const historyText = getChatHistory(groupJid || message.from, 20);
+    const lines = historyText.split("\n").filter(Boolean);
+    const counts = {};
+    for (const l of lines) {
+      const match = l.match(/\]\s*([^:]+):/);
+      if (match) {
+        const user = match[1].trim();
+        counts[user] = (counts[user] || 0) + 1;
+      }
+    }
+    return {
+      analyzedMessagesCount: lines.length,
+      activityByUser: counts,
+    };
+  }
+
+  if (name === "add_to_knowledge_base") {
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Only group admins can add to Knowledge Base." };
+    const { addToKnowledgeBase } = await import("./agentKnowledge.js");
+    const item = await addToKnowledgeBase({
+      title: args.title,
+      content: args.content,
+      category: args.category || "general",
+      scope: groupJid || message.from,
+      author: callerJid,
+    });
+    return { success: true, added: item };
+  }
+
+  if (name === "query_knowledge_base") {
+    const { queryKnowledgeBase } = await import("./agentKnowledge.js");
+    const matches = await queryKnowledgeBase({
+      query: args.query,
+      scope: groupJid || message.from,
+    });
+    return { query: args.query, resultsCount: matches.length, results: matches };
+  }
+
   return { error: `Unknown tool: ${name}` };
 }
 
@@ -891,12 +1113,26 @@ export async function runAgentPrompt({ prompt, message, conn }) {
   const recentChat = getChatHistory(message.from, 10);
   const activeTasks = await listScheduledTasks(message.from);
 
+  const { getActivePersona } = await import("./agentPersona.js");
+  const { formatKnowledgeForPrompt } = await import("./agentKnowledge.js");
+  const persona = await getActivePersona(scope);
+  const kbText = await formatKnowledgeForPrompt(prompt, scope);
+
   let systemPrompt =
     `You are the fully autonomous AI agent for ${BOT_INFO.NAME}, a production WhatsApp bot.\n` +
     `Current System Time: ${new Date().toLocaleString()} (ISO: ${new Date().toISOString()})\n` +
+    `Active Persona Profile: [${persona.name}]\n` +
     `Chat Context: ${isGroup ? `Group (${meta?.subject || groupJid})` : "Direct Message"} [${message.from}]\n` +
     `Caller: ${callerJid} (${callerAdmin ? "ADMIN / OWNER" : "REGULAR PARTICIPANT"})\n` +
     `Bot Privileges: ${botAdmin ? "GROUP ADMIN (Has full management rights)" : "REGULAR MEMBER"}\n\n`;
+
+  if (persona.prompt) {
+    systemPrompt += `Operational Style & Persona:\n${persona.prompt}\n\n`;
+  }
+
+  if (kbText) {
+    systemPrompt += `${kbText}\n\n`;
+  }
 
   if (memoriesText) {
     systemPrompt += `${memoriesText}\n\n`;
@@ -916,15 +1152,19 @@ export async function runAgentPrompt({ prompt, message, conn }) {
 
   systemPrompt +=
     `Core Capabilities & Autonomous Instructions:\n` +
-    `1. Deterministic Math & Member Filtering: Use 'filter_group_members' for phone number filters, country code startsWith, and digit sums.\n` +
-    `2. Memory Layer: Store facts, rules, user preferences, and reminders using 'remember', 'recall', 'forget', and 'list_memories'.\n` +
-    `3. Cron & Autonomous Execution: Schedule recurring cron jobs or delayed tasks using 'schedule_task' (supports standard 5-part cron syntax like '0 9 * * *', '*/30 * * * *', times like '23:00', or 'in 15m'). You will autonomously self-initiate and execute instructions when triggered!\n` +
-    `4. Live Web Search & Browsing: Use 'web_search' to get real-time facts, news, sports scores, and search results; use 'fetch_webpage' to read and summarize any URL.\n` +
-    `5. Safe Code Execution: Use 'run_code' to run JavaScript code in a sandbox for calculations, data analysis, regex, and algorithms.\n` +
-    `6. Generative Visuals: Use 'generate_image' to generate new AI images and 'create_sticker' to create stickers.\n` +
-    `7. Vision: When an image is attached or quoted, you can inspect it and analyze its content, text, and details!\n` +
-    `8. Strict Security: Destructive actions (kick, promote, demote, mute, schedule) require caller to be an Admin or Owner.\n` +
-    `9. Always confirm the actions executed clearly, concisely, and with emojis.`;
+    `1. Subagent Swarm Delegation: Delegate specialized tasks to 'delegate_subtask' with roles: researcher, coder, moderator, summarizer, analyst.\n` +
+    `2. Autonomous Planning: For multi-step tasks, create milestone checklists with 'create_plan' and stream updates with 'update_plan_progress'.\n` +
+    `3. Chat Intelligence & History: Search past discussions with 'search_chat_messages' and inspect engagement with 'analyze_chat_activity'.\n` +
+    `4. Knowledge Base (RAG): Save custom rules or FAQs with 'add_to_knowledge_base' and query with 'query_knowledge_base'.\n` +
+    `5. Deterministic Math & Member Filtering: Use 'filter_group_members' for phone number filters, country code startsWith, and digit sums.\n` +
+    `6. Memory Layer: Store facts, rules, user preferences, and reminders using 'remember', 'recall', 'forget', and 'list_memories'.\n` +
+    `7. Cron & Autonomous Execution: Schedule recurring cron jobs or delayed tasks using 'schedule_task' (supports standard 5-part cron syntax like '0 9 * * *', '*/30 * * * *', times like '23:00', or 'in 15m'). You will autonomously self-initiate and execute instructions when triggered!\n` +
+    `8. Live Web Search & Browsing: Use 'web_search' to get real-time facts, news, sports scores, and search results; use 'fetch_webpage' to read and summarize any URL.\n` +
+    `9. Safe Code Execution: Use 'run_code' to run JavaScript code in a sandbox for calculations, data analysis, regex, and algorithms.\n` +
+    `10. Generative Visuals: Use 'generate_image' to generate new AI images and 'create_sticker' to create stickers.\n` +
+    `11. Vision: When an image is attached or quoted, you can inspect it and analyze its content, text, and details!\n` +
+    `12. Strict Security: Destructive actions (kick, promote, demote, mute, schedule) require caller to be an Admin or Owner.\n` +
+    `13. Always confirm the actions executed clearly, concisely, and with emojis.`;
 
   // Multi-Modal Vision: Check if an image is attached or quoted
   let imageBase64 = null;

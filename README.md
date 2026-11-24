@@ -77,6 +77,7 @@ Session data is stored in `./database.db` by default (or in Postgres when `DATAB
 | `STICKER_PACKNAME` | `X-Asena` | Default sticker pack name |
 | `STICKER_AUTHOR` | `X-Asena` | Default sticker author |
 | `REMOVEBG_API_KEY` | _(empty)_ | API key for `#removebg` |
+| `REMOVEBG_API_URL` | `https://api.remove.bg/v1.0/removebg` | Endpoint for `#removebg`; any API that accepts the same requests and returns the image |
 | `LOG_LEVEL` | `warn` | App log level: `silent` \| `error` \| `warn` \| `info` \| `debug` |
 | `BAILEYS_LOG_LEVEL` | `silent` | Baileys / pino level |
 | `JOB_CONCURRENCY` | `1` | Parallel media jobs (YouTube downloads) |

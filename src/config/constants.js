@@ -14,6 +14,7 @@ export const MEDIA = {
   STICKER_PACKNAME: process.env.STICKER_PACKNAME || "X-Asena",
   STICKER_AUTHOR: process.env.STICKER_AUTHOR || "X-Asena",
   REMOVEBG_API_KEY: process.env.REMOVEBG_API_KEY || "",
+  REMOVEBG_API_URL: process.env.REMOVEBG_API_URL || "https://api.remove.bg/v1.0/removebg",
   /** Soft caps before send (bytes) */
   MAX_AUDIO_BYTES: 15 * 1024 * 1024,
   MAX_VIDEO_BYTES: 60 * 1024 * 1024,

@@ -44,27 +44,16 @@ command(
         conn,
         message,
         `🤖 *AUTONOMOUS AGENT LAYER*\n\n` +
-          `Prompt the autonomous agent to inspect, manage, browse, calculate, or schedule tasks in this chat.\n\n` +
-          `*Capabilities & Examples:*\n` +
-          `• *Smart Moderation:* \`@bot can you kick everyone whose number starts with 63 and their digits sum to 67?\`\n` +
-          `• *Autonomous Cron:* \`@bot every day at 8 AM search AI news and post a summary\`\n` +
-          `• *Live Web Search:* \`@bot search who won today's football match and summarize\`\n` +
-          `• *Code Execution:* \`@bot calculate the first 30 prime numbers\`\n` +
-          `• *Multi-Agent Swarm:* \`@bot delegate to researcher to find latest Baileys features\`\n` +
-          `• *Autonomous Planning:* \`@bot create a plan to audit this group and execute it\`\n` +
-          `• *Knowledge Base (RAG):* \`@bot what are the refund guidelines in our knowledge base?\`\n` +
-          `• *Generative Visuals:* \`@bot generate an image of a cyberpunk city at night\`\n` +
-          `• *Multi-Modal Vision:* Reply to any photo with \`@bot what is written here?\`\n` +
-          `• *Long-Term Memory:* \`@bot remember that quiet hours start at 10 PM\`\n\n` +
+          `Ask or instruct the bot naturally: \`@bot <request>\`\n\n` +
           `_Commands:_\n` +
-          `• \`${BOT_INFO.PREFIX}agent <prompt>\` / \`${BOT_INFO.PREFIX}ask <prompt>\`\n` +
-          `• \`${BOT_INFO.PREFIX}agentconfig\` — Set API key, URL, and model\n` +
-          `• \`${BOT_INFO.PREFIX}agentguard\` — Configure prompt injection & jailbreak guardrails\n` +
-          `• \`${BOT_INFO.PREFIX}agentpersona\` — Configure agent operational persona\n` +
-          `• \`${BOT_INFO.PREFIX}agentkb\` — Manage verified Knowledge Base articles\n` +
-          `• \`${BOT_INFO.PREFIX}agentmemory\` — View or reset long-term memories\n` +
-          `• \`${BOT_INFO.PREFIX}agenttasks\` — Inspect or cancel scheduled autonomous jobs\n` +
-          `• \`${BOT_INFO.PREFIX}confirm\` — Confirm high-risk actions (safety guardrail)`
+          `• \`${BOT_INFO.PREFIX}agent <prompt>\` — Run an instruction\n` +
+          `• \`${BOT_INFO.PREFIX}agentconfig\` — Endpoint, key & model\n` +
+          `• \`${BOT_INFO.PREFIX}agentguard\` — Injection & safety guardrails\n` +
+          `• \`${BOT_INFO.PREFIX}agentpersona\` — Tone & personality\n` +
+          `• \`${BOT_INFO.PREFIX}agentkb\` — Knowledge Base (RAG)\n` +
+          `• \`${BOT_INFO.PREFIX}agentmemory\` — Long-term memory\n` +
+          `• \`${BOT_INFO.PREFIX}agenttasks\` — Scheduled autonomous jobs\n` +
+          `• \`${BOT_INFO.PREFIX}confirm\` — Approve high-impact actions`
       );
     }
 
@@ -406,7 +395,7 @@ command(
       return await reply(
         conn,
         message,
-        `🧠 *AGENT MEMORY STORE*\n\n_No memories stored for this chat yet._\n\nPrompt the agent to remember facts or rules, e.g.:\n\`@bot remember that quiet hours begin at 10 PM\``
+        `🧠 *AGENT MEMORY STORE*\n\n_No memories stored for this chat yet._`
       );
     }
 
@@ -446,10 +435,7 @@ command(
       return await reply(
         conn,
         message,
-        `⏰ *AUTONOMOUS AGENT SCHEDULED TASKS*\n\n_No active scheduled tasks for this chat._\n\n` +
-          `You can schedule autonomous tasks directly with natural language, e.g.:\n` +
-          `• \`@bot every day at 8 AM check for foreign numbers and kick them\`\n` +
-          `• \`@bot in 30 minutes unmute the group and announce morning greetings\``
+        `⏰ *AUTONOMOUS AGENT SCHEDULED TASKS*\n\n_No active scheduled tasks for this chat._`
       );
     }
 

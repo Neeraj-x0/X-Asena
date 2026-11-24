@@ -174,6 +174,31 @@ export async function createScheduledTask({
   creatorJid = "system",
   description = "",
 }) {
+  const { validateScheduleSafe, containsProfanityOrAbuse, isDmRequest } = await import(
+    "./agentSafetyThrottle.js"
+  );
+
+  // Anti-Spam Schedule Interval Safety
+  const scheduleCheck = validateScheduleSafe(schedule);
+  if (!scheduleCheck.safe) {
+    throw new Error(scheduleCheck.error);
+  }
+
+  // Zero-Tolerance Profanity Check
+  const profanityCheck = containsProfanityOrAbuse(taskPrompt);
+  if (profanityCheck.hasProfanity) {
+    throw new Error(
+      `Cannot schedule task with abusive language ("${profanityCheck.matchedWord}"). Only polite tasks are permitted.`
+    );
+  }
+
+  // DM Prohibition Check
+  if (isDmRequest(taskPrompt)) {
+    throw new Error(
+      "Cannot schedule tasks targeting direct messages (DMs) to individual users. Automated tasks must stay within the group chat."
+    );
+  }
+
   const parsed = parseScheduleExpression(schedule);
   const tasks = await loadScheduledTasks();
 
@@ -259,6 +284,9 @@ async function executeAutonomousTask(task, conn) {
       message: syntheticMessage,
       conn,
     });
+
+    // Pacing to prevent WhatsApp burst spam
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Deliver completion report
     const completionMsg = `✅ *[AUTONOMOUS TASK COMPLETED]*\n\n${result}`;

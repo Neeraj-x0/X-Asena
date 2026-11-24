@@ -63,6 +63,14 @@ function unwrapMessage(msg) {
 function extractQuotedMessage(contextInfo) {
     if (!contextInfo?.quotedMessage) return null;
 
+    const isViewOnce = Boolean(
+        contextInfo.quotedMessage?.viewOnceMessage ||
+        contextInfo.quotedMessage?.viewOnceMessageV2 ||
+        contextInfo.quotedMessage?.viewOnceMessageV2Extension ||
+        contextInfo.quotedMessage?.documentWithCaptionMessage?.message?.viewOnceMessage ||
+        contextInfo.quotedMessage?.documentWithCaptionMessage?.message?.viewOnceMessageV2
+    );
+
     const unwrapped = unwrapMessage(contextInfo.quotedMessage);
     const { key: quotedKey, mime } = getMessageMimeType(unwrapped);
     if (mime === "unknown" || !quotedKey) return null;
@@ -75,11 +83,15 @@ function extractQuotedMessage(contextInfo) {
         const { key: nestKey, mime: nestMime } = getMessageMimeType(nested);
         if (nestMime !== "unknown" && nestKey) {
             content = nested[nestKey];
-            return normalizeQuoted(content, nestMime, nestKey, nested);
+            const q = normalizeQuoted(content, nestMime, nestKey, nested);
+            q.isViewOnce = isViewOnce;
+            return q;
         }
     }
 
-    return normalizeQuoted(content, mime, quotedKey, unwrapped);
+    const q = normalizeQuoted(content, mime, quotedKey, unwrapped);
+    q.isViewOnce = isViewOnce;
+    return q;
 }
 
 function normalizeQuoted(content, mime, messageTypeKey, raw) {
@@ -164,11 +176,20 @@ async function serialize(message, conn) {
         ? messageContent
         : (messageContent?.text || messageContent?.caption || "");
 
+    const isViewOnce = Boolean(
+        msgContent?.viewOnceMessage ||
+        msgContent?.viewOnceMessageV2 ||
+        msgContent?.viewOnceMessageV2Extension ||
+        msgContent?.documentWithCaptionMessage?.message?.viewOnceMessage ||
+        msgContent?.documentWithCaptionMessage?.message?.viewOnceMessageV2
+    );
+
     return {
         key,
         id: key.id,
         pushName: pushName || "",
         isGroup,
+        isViewOnce,
         from,
         fromAlt,
         type: messageMime,

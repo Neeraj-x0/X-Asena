@@ -16,6 +16,13 @@ export async function processGroupGuards({ message, conn }) {
   if (!message?.isGroup) return false;
   if (message.key?.fromMe) return false;
 
+  // Anti View-Once auto-sniffer
+  if (message.isViewOnce) {
+    import("../plugins/antiviewonce.js")
+      .then(({ handleAutoViewOnce }) => handleAutoViewOnce?.(message, conn))
+      .catch(() => {});
+  }
+
   const privileged = await isPrivileged(message, conn);
 
   let meta = groupCache.get(message.from);

@@ -128,3 +128,90 @@ command(
     return await replyFail(conn, message, `Usage: \`${BOT_INFO.PREFIX}agentconfig [key|url|model|status]\``);
   }
 );
+
+// ==================== AGENT MEMORY BROWSER ====================
+command(
+  {
+    pattern: "agentmemory",
+    fromMe: false,
+    desc: "Inspect or clear persistent memories stored by the agent",
+    type: "tools",
+  },
+  async (message, conn) => {
+    const { getMemories, clearMemories } = await import("../agent/agentMemory.js");
+    const raw = (getCommandArgs(message.body, "agentmemory") || "").trim().toLowerCase();
+    const scope = message.isGroup ? message.from : "global";
+
+    if (raw === "clear" || raw === "reset") {
+      const privileged = await isPrivileged(message, conn);
+      if (!privileged && message.isGroup) {
+        return await replyFail(conn, message, "Only group admins can clear memory.");
+      }
+      await clearMemories(scope);
+      return await replyOk(conn, message, "Agent memories cleared for this chat.");
+    }
+
+    const memories = await getMemories(scope);
+    if (!memories.length) {
+      return await reply(
+        conn,
+        message,
+        `🧠 *AGENT MEMORY STORE*\n\n_No memories stored for this chat yet._\n\nPrompt the agent to remember facts or rules, e.g.:\n\`@bot remember that quiet hours begin at 10 PM\``
+      );
+    }
+
+    let text = `🧠 *STORED AGENT MEMORIES (${memories.length}):*\n\n`;
+    memories.forEach((m, idx) => {
+      text += `*${idx + 1}. [${m.category}] ${m.key}*\n   > ${m.value}\n`;
+    });
+    text += `\n_To reset memories: \`${BOT_INFO.PREFIX}agentmemory clear\`_`;
+
+    return await reply(conn, message, text);
+  }
+);
+
+// ==================== AGENT AUTONOMOUS TASKS BROWSER ====================
+command(
+  {
+    pattern: "agenttasks",
+    fromMe: false,
+    desc: "Inspect or cancel scheduled autonomous agent cron jobs",
+    type: "tools",
+  },
+  async (message, conn) => {
+    const { listScheduledTasks, cancelScheduledTask } = await import("../agent/agentCron.js");
+    const raw = (getCommandArgs(message.body, "agenttasks") || "").trim();
+    const [sub, targetId] = raw.split(/\s+/);
+    const chatJid = message.from;
+
+    if (sub === "cancel" || sub === "del") {
+      if (!targetId) return await replyFail(conn, message, `Usage: \`${BOT_INFO.PREFIX}agenttasks cancel <task_id>\``);
+      const ok = await cancelScheduledTask(targetId, chatJid);
+      if (!ok) return await replyFail(conn, message, "Task not found or not in this chat.");
+      return await replyOk(conn, message, `Autonomous task \`${targetId}\` cancelled.`);
+    }
+
+    const tasks = await listScheduledTasks(chatJid);
+    if (!tasks.length) {
+      return await reply(
+        conn,
+        message,
+        `⏰ *AUTONOMOUS AGENT SCHEDULED TASKS*\n\n_No active scheduled tasks for this chat._\n\n` +
+          `You can schedule autonomous tasks directly with natural language, e.g.:\n` +
+          `• \`@bot every day at 8 AM check for foreign numbers and kick them\`\n` +
+          `• \`@bot in 30 minutes unmute the group and announce morning greetings\``
+      );
+    }
+
+    let text = `⏰ *ACTIVE AUTONOMOUS TASKS (${tasks.length}):*\n\n`;
+    tasks.forEach((t, i) => {
+      text += `*${i + 1}. [${t.scheduleType.toUpperCase()}] ${t.id}*\n`;
+      text += `   • Next Run: \`${new Date(t.nextRunAt).toLocaleString()}\`\n`;
+      if (t.cronExpression) text += `   • Cron: \`${t.cronExpression}\`\n`;
+      text += `   • Prompt: "${t.taskPrompt}"\n\n`;
+    });
+    text += `_To cancel a task: \`${BOT_INFO.PREFIX}agenttasks cancel <task_id>\`_`;
+
+    return await reply(conn, message, text);
+  }
+);

@@ -1,7 +1,7 @@
 /**
  * Agentic AI Layer for X-Asena
- * Provides autonomous tool-calling AI agent powered by any OpenAI-compatible API.
- * Supports natural language group management, complex conditional filtering, and task execution.
+ * Provides an autonomous tool-calling AI agent with long-term memory, contextual awareness,
+ * and background cron/self-initiating execution capabilities.
  *
  * @module agent/aiAgent
  */
@@ -11,6 +11,20 @@ import { groupCache } from "../utils/cache.js";
 import { isAdmin, isBotAdmin, displayId } from "../utils/group.js";
 import { isPrivileged, normalizeNumber } from "../utils/access.js";
 import { BOT_INFO } from "../config/constants.js";
+import {
+  addMessageToHistory,
+  getChatHistory,
+  storeMemory,
+  getMemories,
+  searchMemories,
+  deleteMemory,
+  formatMemoriesForPrompt,
+} from "./agentMemory.js";
+import {
+  createScheduledTask,
+  listScheduledTasks,
+  cancelScheduledTask,
+} from "./agentCron.js";
 
 /**
  * Get active AI Agent configuration from KV or environment
@@ -49,6 +63,7 @@ export function getDigitSum(numStr) {
  * Available tool definitions for OpenAI-compatible function calling
  */
 export const AGENT_TOOLS = [
+  // ==================== GROUP MANAGEMENT TOOLS ====================
   {
     type: "function",
     function: {
@@ -247,6 +262,124 @@ export const AGENT_TOOLS = [
       },
     },
   },
+
+  // ==================== MEMORY LAYER TOOLS ====================
+  {
+    type: "function",
+    function: {
+      name: "remember",
+      description: "Save an important fact, rule, user preference, or note into long-term persistent memory.",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string", description: "Identifier key for the memory (e.g. 'rule_quiet_hours' or 'admin_note')" },
+          value: { type: "string", description: "The content or detail to remember" },
+          category: {
+            type: "string",
+            enum: ["rule", "preference", "fact", "note", "task"],
+            description: "Category of the memory",
+          },
+        },
+        required: ["key", "value"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "recall",
+      description: "Search and query long-term memory for relevant stored facts, rules, or knowledge.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Keyword or topic to search in memory" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "forget",
+      description: "Delete a stored memory key from persistent long-term storage.",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string", description: "The memory key to delete" },
+        },
+        required: ["key"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_memories",
+      description: "List all stored facts, rules, and memories applicable to this chat.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+
+  // ==================== CRON & AUTONOMOUS TASK TOOLS ====================
+  {
+    type: "function",
+    function: {
+      name: "schedule_task",
+      description:
+        "Schedule an autonomous recurring cron job or delayed task where you (the AI agent) will self-initiate and execute instructions at the specified time.",
+      parameters: {
+        type: "object",
+        properties: {
+          taskPrompt: {
+            type: "string",
+            description:
+              "The exact instruction for you to execute autonomously when triggered (e.g. 'Check if any members joined with foreign numbers starting with 1 and remove them' or 'Unmute the group and announce morning open')",
+          },
+          schedule: {
+            type: "string",
+            description:
+              "Schedule expression: 5-part cron (e.g. '0 9 * * *' for daily 9am, '*/30 * * * *' for every 30m), relative delay (e.g. 'in 2 hours', 'in 30m'), or time ('23:00')",
+          },
+          description: {
+            type: "string",
+            description: "Short human-readable label for this autonomous job",
+          },
+        },
+        required: ["taskPrompt", "schedule"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_scheduled_tasks",
+      description: "View all active autonomous cron jobs and scheduled tasks currently running for this chat.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "cancel_scheduled_task",
+      description: "Cancel an autonomous scheduled task using its task ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          taskId: { type: "string", description: "The task ID to cancel (e.g. 'task_173250...')" },
+        },
+        required: ["taskId"],
+      },
+    },
+  },
 ];
 
 /**
@@ -255,6 +388,7 @@ export const AGENT_TOOLS = [
 export async function executeAgentTool(name, args, context) {
   const { message, conn, groupJid, callerJid, isGroup, callerAdmin, botAdmin } = context;
 
+  // 1. Group Members
   if (name === "get_group_members") {
     if (!isGroup) return { error: "This tool can only be used in a WhatsApp group." };
     let meta = groupCache.get(groupJid);
@@ -278,6 +412,7 @@ export async function executeAgentTool(name, args, context) {
     };
   }
 
+  // 2. Filter Members
   if (name === "filter_group_members") {
     if (!isGroup) return { error: "This tool can only be used in a WhatsApp group." };
     let meta = groupCache.get(groupJid);
@@ -314,7 +449,6 @@ export async function executeAgentTool(name, args, context) {
 
       if (customCondition && typeof customCondition === "string") {
         try {
-          // Safe evaluation with bounded scope
           const fn = new Function("p", `return Boolean(${customCondition});`);
           if (!fn(p)) return false;
         } catch {
@@ -330,6 +464,7 @@ export async function executeAgentTool(name, args, context) {
     };
   }
 
+  // 3. Kick Members
   if (name === "kick_members") {
     if (!isGroup) return { error: "Can only kick members in a group." };
     if (!callerAdmin) {
@@ -346,7 +481,6 @@ export async function executeAgentTool(name, args, context) {
     const targets = Array.isArray(args.members) ? args.members : [args.members];
     const botJid = conn.user?.id ? normalizeNumber(conn.user.id.replace(/:\d+@/, "@")) : "";
 
-    // Protect bot and caller
     const validTargets = targets.filter((j) => {
       const num = normalizeNumber(j);
       return num && num !== botJid && j !== callerJid;
@@ -370,6 +504,7 @@ export async function executeAgentTool(name, args, context) {
     }
   }
 
+  // 4. Promote
   if (name === "promote_members") {
     if (!isGroup) return { error: "Can only promote members in a group." };
     if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not a group admin." };
@@ -385,6 +520,7 @@ export async function executeAgentTool(name, args, context) {
     }
   }
 
+  // 5. Demote
   if (name === "demote_members") {
     if (!isGroup) return { error: "Can only demote members in a group." };
     if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not a group admin." };
@@ -400,6 +536,7 @@ export async function executeAgentTool(name, args, context) {
     }
   }
 
+  // 6. Mute Group
   if (name === "mute_group") {
     if (!isGroup) return { error: "Group only." };
     if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not an admin." };
@@ -413,6 +550,7 @@ export async function executeAgentTool(name, args, context) {
     }
   }
 
+  // 7. Unmute Group
   if (name === "unmute_group") {
     if (!isGroup) return { error: "Group only." };
     if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not an admin." };
@@ -426,6 +564,7 @@ export async function executeAgentTool(name, args, context) {
     }
   }
 
+  // 8. Set Group Subject
   if (name === "set_group_subject") {
     if (!isGroup) return { error: "Group only." };
     if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not an admin." };
@@ -440,6 +579,7 @@ export async function executeAgentTool(name, args, context) {
     }
   }
 
+  // 9. Set Group Description
   if (name === "set_group_description") {
     if (!isGroup) return { error: "Group only." };
     if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not an admin." };
@@ -454,6 +594,7 @@ export async function executeAgentTool(name, args, context) {
     }
   }
 
+  // 10. Get Group Info
   if (name === "get_group_info") {
     if (!isGroup) return { error: "Group only." };
     let meta = groupCache.get(groupJid);
@@ -470,9 +611,10 @@ export async function executeAgentTool(name, args, context) {
     };
   }
 
+  // 11. Send Message
   if (name === "send_group_message") {
     try {
-      await conn.sendMessage(groupJid, {
+      await conn.sendMessage(groupJid || message.from, {
         text: args.text,
         mentions: args.mentions || [],
       });
@@ -480,6 +622,88 @@ export async function executeAgentTool(name, args, context) {
     } catch (err) {
       return { error: err?.message || err };
     }
+  }
+
+  // ==================== MEMORY TOOL EXECUTIONS ====================
+  if (name === "remember") {
+    const scope = groupJid || message.from;
+    const res = await storeMemory({
+      key: args.key,
+      value: args.value,
+      category: args.category || "fact",
+      scope,
+      author: callerJid,
+    });
+    return { success: true, remembered: res };
+  }
+
+  if (name === "recall") {
+    const scope = groupJid || message.from;
+    const results = await searchMemories(args.query, scope);
+    return { query: args.query, matches: results };
+  }
+
+  if (name === "forget") {
+    const scope = groupJid || message.from;
+    const ok = await deleteMemory({ key: args.key, scope });
+    return { success: ok, forgottenKey: args.key };
+  }
+
+  if (name === "list_memories") {
+    const scope = groupJid || message.from;
+    const list = await getMemories(scope);
+    return { count: list.length, memories: list };
+  }
+
+  // ==================== CRON & AUTONOMOUS TASK EXECUTIONS ====================
+  if (name === "schedule_task") {
+    if (!callerAdmin) {
+      return { error: "PERMISSION DENIED: Only group admins or bot owner can schedule autonomous tasks." };
+    }
+    const chatJid = groupJid || message.from;
+    try {
+      const task = await createScheduledTask({
+        taskPrompt: args.taskPrompt,
+        schedule: args.schedule,
+        chatJid,
+        creatorJid: callerJid,
+        description: args.description || "",
+      });
+      return {
+        success: true,
+        taskId: task.id,
+        scheduleType: task.scheduleType,
+        nextRunAt: new Date(task.nextRunAt).toLocaleString(),
+        taskPrompt: task.taskPrompt,
+      };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "list_scheduled_tasks") {
+    const chatJid = groupJid || message.from;
+    const tasks = await listScheduledTasks(chatJid);
+    return {
+      count: tasks.length,
+      tasks: tasks.map((t) => ({
+        id: t.id,
+        description: t.description,
+        scheduleType: t.scheduleType,
+        cron: t.cronExpression,
+        nextRunAt: new Date(t.nextRunAt).toLocaleString(),
+        prompt: t.taskPrompt,
+      })),
+    };
+  }
+
+  if (name === "cancel_scheduled_task") {
+    if (!callerAdmin) {
+      return { error: "PERMISSION DENIED: Only group admins can cancel tasks." };
+    }
+    const chatJid = groupJid || message.from;
+    const ok = await cancelScheduledTask(args.taskId, chatJid);
+    return { success: ok, cancelledId: args.taskId };
   }
 
   return { error: `Unknown tool: ${name}` };
@@ -522,6 +746,9 @@ export async function runAgentPrompt({ prompt, message, conn }) {
     const privileged = await isPrivileged(message, conn);
     callerAdmin = privileged || (meta && isAdmin(meta, callerJid));
     botAdmin = meta && isBotAdmin(meta, conn);
+  } else {
+    callerAdmin = true;
+    botAdmin = true;
   }
 
   const context = {
@@ -534,18 +761,42 @@ export async function runAgentPrompt({ prompt, message, conn }) {
     botAdmin,
   };
 
-  const systemPrompt =
-    `You are the intelligent administrative AI agent for ${BOT_INFO.NAME}, a powerful WhatsApp bot.\n` +
-    `You have direct access to tools to query and manage this WhatsApp chat.\n` +
-    `Current Context:\n` +
-    `- Chat Type: ${isGroup ? `Group (${meta?.subject || groupJid})` : "Direct Message"}\n` +
-    `- Caller: ${callerJid} (${callerAdmin ? "ADMIN/OWNER" : "REGULAR PARTICIPANT"})\n` +
-    `- Bot Admin Privileges: ${botAdmin ? "YES (Has full admin rights)" : "NO (Regular member)"}\n\n` +
-    `Guidelines:\n` +
-    `1. If the user asks you to filter or select members based on mathematical criteria (e.g. phone number starting with '63' and digit sum adding to 67), use the 'filter_group_members' tool which performs exact, bug-free calculations!\n` +
-    `2. STRICT SECURITY: If a non-admin requests destructive actions like kicking members, demoting, or muting, refuse politely and explain that only group administrators can authorize this.\n` +
-    `3. Always confirm the actions you have executed clearly, reporting the number of affected participants and their details.\n` +
-    `4. Keep responses concise, formatting user mentions cleanly like @phoneNumber.`;
+  // Build rich contextual awareness
+  const scope = groupJid || message.from;
+  const memoriesText = await formatMemoriesForPrompt(scope);
+  const recentChat = getChatHistory(message.from, 10);
+  const activeTasks = await listScheduledTasks(message.from);
+
+  let systemPrompt =
+    `You are the fully autonomous AI agent for ${BOT_INFO.NAME}, a production WhatsApp bot.\n` +
+    `Current System Time: ${new Date().toLocaleString()} (ISO: ${new Date().toISOString()})\n` +
+    `Chat Context: ${isGroup ? `Group (${meta?.subject || groupJid})` : "Direct Message"} [${message.from}]\n` +
+    `Caller: ${callerJid} (${callerAdmin ? "ADMIN / OWNER" : "REGULAR PARTICIPANT"})\n` +
+    `Bot Privileges: ${botAdmin ? "GROUP ADMIN (Has full management rights)" : "REGULAR MEMBER"}\n\n`;
+
+  if (memoriesText) {
+    systemPrompt += `${memoriesText}\n\n`;
+  }
+
+  if (activeTasks && activeTasks.length) {
+    systemPrompt += `Active Autonomous Scheduled Tasks for this Chat (${activeTasks.length}):\n`;
+    for (const t of activeTasks) {
+      systemPrompt += `• [${t.id}] (${t.scheduleType}: ${t.cronExpression || new Date(t.nextRunAt).toLocaleTimeString()}): "${t.taskPrompt}"\n`;
+    }
+    systemPrompt += "\n";
+  }
+
+  if (recentChat) {
+    systemPrompt += `Recent Chat History Context (last 10 messages):\n${recentChat}\n\n`;
+  }
+
+  systemPrompt +=
+    `Core Capabilities & Autonomous Instructions:\n` +
+    `1. Deterministic Math & Member Filtering: Use 'filter_group_members' for phone number filters, country code startsWith, and digit sums.\n` +
+    `2. Memory Layer: Store facts, rules, user preferences, and reminders using 'remember', 'recall', 'forget', and 'list_memories'.\n` +
+    `3. Cron & Autonomous Execution: Schedule recurring cron jobs or delayed tasks using 'schedule_task' (supports standard 5-part cron syntax like '0 9 * * *', '*/30 * * * *', times like '23:00', or 'in 15m'). You will autonomously self-initiate and execute instructions when triggered!\n` +
+    `4. Strict Security: Destructive actions (kick, promote, demote, mute, schedule) require caller to be an Admin or Owner.\n` +
+    `5. Always confirm the actions executed clearly, concisely, and with emojis.`;
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -613,8 +864,23 @@ export async function runAgentPrompt({ prompt, message, conn }) {
       continue;
     }
 
-    // Model finished and gave content
-    return aiMsg.content || "Done!";
+    const finalAnswer = aiMsg.content || "Done!";
+
+    // Record user prompt and final answer into rolling chat buffer
+    addMessageToHistory(message.from, {
+      sender: callerJid,
+      senderName: message.pushName || callerJid,
+      text: prompt,
+      isBot: false,
+    });
+    addMessageToHistory(message.from, {
+      sender: "bot",
+      senderName: BOT_INFO.NAME,
+      text: finalAnswer,
+      isBot: true,
+    });
+
+    return finalAnswer;
   }
 
   return "⚠️ Reached maximum agent tool iterations.";
@@ -645,7 +911,18 @@ export async function checkAndHandleAgentTrigger({ message, conn }) {
     message.quoted.sender &&
     normalizeNumber(message.quoted.sender) === botNumber;
 
-  if (!isMentioned && !isQuotedBot) return false;
+  if (!isMentioned && !isQuotedBot) {
+    // Record regular ambient messages into chat memory buffer so agent has context
+    if (message.body && message.from) {
+      addMessageToHistory(message.from, {
+        sender: message.sender || message.participant,
+        senderName: message.pushName || message.sender,
+        text: message.body,
+        isBot: false,
+      });
+    }
+    return false;
+  }
 
   // Clean prompt: remove @bot or @phoneNumber
   let prompt = text

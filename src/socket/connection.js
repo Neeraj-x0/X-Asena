@@ -185,6 +185,9 @@ async function connect() {
         import("../plugins/automute.js")
           .then(({ startAutoMuteScheduler }) => startAutoMuteScheduler?.(conn))
           .catch(() => {});
+        import("../agent/agentCron.js")
+          .then(({ startAutonomousAgentScheduler }) => startAutonomousAgentScheduler?.(conn))
+          .catch(() => {});
 
         // System log group + onboarding (never DM the bot itself)
         setTimeout(async () => {

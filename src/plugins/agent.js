@@ -53,6 +53,7 @@ command(
           `• \`${BOT_INFO.PREFIX}agentkb\` — Knowledge Base (RAG)\n` +
           `• \`${BOT_INFO.PREFIX}agentmemory\` — Long-term memory\n` +
           `• \`${BOT_INFO.PREFIX}agenttasks\` — Scheduled autonomous jobs\n` +
+          `• \`${BOT_INFO.PREFIX}agentwatchers\` — Real-time event watchers\n` +
           `• \`${BOT_INFO.PREFIX}confirm\` — Approve high-impact actions`
       );
     }
@@ -452,6 +453,59 @@ command(
   }
 );
 
+// ==================== AGENT REAL-TIME EVENT WATCHERS ====================
+command(
+  {
+    pattern: "agentwatchers",
+    fromMe: false,
+    desc: "Inspect or cancel active real-time event watchers",
+    type: "tools",
+  },
+  async (message, conn) => {
+    const { listEventWatchers, cancelEventWatcher } = await import("../agent/agentEvents.js");
+    const raw = (getCommandArgs(message.body, "agentwatchers") || "").trim();
+    const [sub, targetId] = raw.split(/\s+/);
+    const chatJid = message.from;
+
+    if (sub === "cancel" || sub === "del") {
+      if (!targetId) {
+        return await replyFail(
+          conn,
+          message,
+          `Usage: \`${BOT_INFO.PREFIX}agentwatchers cancel <watcher_id>\``
+        );
+      }
+      const ok = await cancelEventWatcher(targetId, chatJid);
+      if (!ok) return await replyFail(conn, message, "Watcher not found or not in this chat.");
+      return await replyOk(conn, message, `Event watcher \`${targetId}\` cancelled.`);
+    }
+
+    const watchers = await listEventWatchers(chatJid);
+    if (!watchers.length) {
+      return await reply(
+        conn,
+        message,
+        `🎯 *ACTIVE EVENT WATCHERS*\n\n_No active event watchers registered in this chat._\n\n` +
+          `Set watchers via AI prompt, e.g.:\n` +
+          `> *"#ask unlock the group when @user leaves"*`
+      );
+    }
+
+    let text = `🎯 *ACTIVE EVENT WATCHERS (${watchers.length}):*\n\n`;
+    watchers.forEach((w, i) => {
+      text += `*${i + 1}. [${w.eventType.toUpperCase()}] ${w.id}*\n`;
+      if (w.targetUser) text += `   • Target User: \`${w.targetUser}\`\n`;
+      if (w.matchPattern) text += `   • Pattern: \`${w.matchPattern}\`\n`;
+      text += `   • Action: "${w.action}"\n`;
+      if (w.linkedTaskId) text += `   • Linked Task: \`${w.linkedTaskId}\`\n`;
+      text += `   • One-time: \`${w.once ? "Yes" : "No"}\`\n\n`;
+    });
+    text += `_To cancel a watcher: \`${BOT_INFO.PREFIX}agentwatchers cancel <watcher_id>\`_`;
+
+    return await reply(conn, message, text);
+  }
+);
+
 // ==================== PROMPT INJECTION GUARDRAILS COMMAND ====================
 command(
   {
@@ -565,6 +619,59 @@ command(
     text += `• \`${BOT_INFO.PREFIX}agentguard logs\` — View blocked injection attempts\n`;
     text += `• \`${BOT_INFO.PREFIX}agentguard clearlogs\` — Clear audit log\n`;
     text += `• \`${BOT_INFO.PREFIX}agentguard test <prompt>\` — Test prompt against scanner`;
+
+    return await reply(conn, message, text);
+  }
+);
+
+// ==================== AGENT REAL-TIME EVENT WATCHERS ====================
+command(
+  {
+    pattern: "agentwatchers",
+    fromMe: false,
+    desc: "Inspect or cancel active real-time event watchers",
+    type: "tools",
+  },
+  async (message, conn) => {
+    const { listEventWatchers, cancelEventWatcher } = await import("../agent/agentEvents.js");
+    const raw = (getCommandArgs(message.body, "agentwatchers") || "").trim();
+    const [sub, targetId] = raw.split(/\s+/);
+    const chatJid = message.from;
+
+    if (sub === "cancel" || sub === "del") {
+      if (!targetId) {
+        return await replyFail(
+          conn,
+          message,
+          `Usage: \`${BOT_INFO.PREFIX}agentwatchers cancel <watcher_id>\``
+        );
+      }
+      const ok = await cancelEventWatcher(targetId, chatJid);
+      if (!ok) return await replyFail(conn, message, "Watcher not found or not in this chat.");
+      return await replyOk(conn, message, `Event watcher \`${targetId}\` cancelled.`);
+    }
+
+    const watchers = await listEventWatchers(chatJid);
+    if (!watchers.length) {
+      return await reply(
+        conn,
+        message,
+        `🎯 *ACTIVE EVENT WATCHERS*\n\n_No active event watchers registered in this chat._\n\n` +
+          `Set watchers via AI prompt, e.g.:\n` +
+          `> *"#ask unlock the group when @user leaves"*`
+      );
+    }
+
+    let text = `🎯 *ACTIVE EVENT WATCHERS (${watchers.length}):*\n\n`;
+    watchers.forEach((w, i) => {
+      text += `*${i + 1}. [${w.eventType.toUpperCase()}] ${w.id}*\n`;
+      if (w.targetUser) text += `   • Target User: \`${w.targetUser}\`\n`;
+      if (w.matchPattern) text += `   • Pattern: \`${w.matchPattern}\`\n`;
+      text += `   • Action: "${w.action}"\n`;
+      if (w.linkedTaskId) text += `   • Linked Task: \`${w.linkedTaskId}\`\n`;
+      text += `   • One-time: \`${w.once ? "Yes" : "No"}\`\n\n`;
+    });
+    text += `_To cancel a watcher: \`${BOT_INFO.PREFIX}agentwatchers cancel <watcher_id>\`_`;
 
     return await reply(conn, message, text);
   }

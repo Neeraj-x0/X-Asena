@@ -10,10 +10,35 @@ import { runAgentPrompt } from "./aiAgent.js";
 import { addMessageToHistory } from "./agentMemory.js";
 import { BOT_INFO } from "../config/constants.js";
 import { normalizeNumber } from "../utils/access.js";
+import { groupCache } from "../utils/cache.js";
 
 const TASKS_KV_KEY = "agent_autonomous_tasks";
 let schedulerInterval = null;
 let activeConn = null;
+
+/**
+ * Parse interval string into milliseconds (e.g. "1m", "30s", "2m", "every minute")
+ * Minimum enforced delay is 30 seconds to prevent WhatsApp anti-ban triggers.
+ */
+export function parseIntervalMs(intervalStr) {
+  const s = String(intervalStr || "").trim().toLowerCase();
+  if (s === "each minute" || s === "every minute" || s === "1 minute" || s === "1m" || s === "1 min") {
+    return 60_000;
+  }
+  const match = s.match(/^(\d+)\s*(s|sec|seconds?|m|min|minutes?|h|hours?|d|days?)$/i);
+  if (!match) return 60_000; // default 1 minute
+
+  const qty = parseInt(match[1], 10);
+  const unit = match[2][0];
+  let ms = 60_000;
+  if (unit === "s") ms = qty * 1000;
+  else if (unit === "m") ms = qty * 60 * 1000;
+  else if (unit === "h") ms = qty * 60 * 60 * 1000;
+  else if (unit === "d") ms = qty * 24 * 60 * 60 * 1000;
+
+  // Enforce 30s minimum for safety
+  return Math.max(30_000, ms);
+}
 
 // ==================== CRON & TIME PARSING ====================
 
@@ -149,19 +174,31 @@ export function parseScheduleExpression(expr) {
 
 // ==================== TASK STORAGE & MANAGEMENT ====================
 
+let inMemoryTasks = [];
+
 /**
  * Load all stored scheduled tasks from BotKV
  */
 export async function loadScheduledTasks() {
-  const tasks = await kvGet(TASKS_KV_KEY);
-  return Array.isArray(tasks) ? tasks : [];
+  try {
+    const tasks = await kvGet(TASKS_KV_KEY);
+    inMemoryTasks = Array.isArray(tasks) ? tasks : [];
+  } catch {
+    /* fallback to inMemoryTasks */
+  }
+  return inMemoryTasks;
 }
 
 /**
  * Save tasks array to BotKV
  */
 export async function saveScheduledTasks(tasks) {
-  await kvSet(TASKS_KV_KEY, tasks);
+  inMemoryTasks = tasks;
+  try {
+    await kvSet(TASKS_KV_KEY, tasks);
+  } catch {
+    /* fallback */
+  }
 }
 
 /**
@@ -215,6 +252,53 @@ export async function createScheduledTask({
 }
 
 /**
+ * Create and register an iterative autonomous task loop
+ */
+export async function createIterativeTask({
+  groupJid,
+  interval = "1m",
+  actionType = "kick_next_member",
+  terminationCondition = "until_no_non_admins",
+  maxIterations = 50,
+  targetRole = "non_admin",
+  excludeUsers = [],
+  reminderText = "",
+  customPrompt = "",
+  linkedWatcherId = null,
+  creatorJid = "system",
+}) {
+  const intervalMs = parseIntervalMs(interval);
+  const tasks = await loadScheduledTasks();
+
+  const task = {
+    id: `itask_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    isIterative: true,
+    taskPrompt: `Iterative Loop: ${actionType} every ${interval} (${terminationCondition})`,
+    chatJid: groupJid,
+    creatorJid,
+    intervalStr: interval,
+    intervalMs,
+    actionType,
+    terminationCondition,
+    maxIterations: Math.min(Math.max(1, parseInt(maxIterations, 10) || 50), 100),
+    iterationCount: 0,
+    targetRole: targetRole || "non_admin",
+    excludeUsers: Array.isArray(excludeUsers) ? excludeUsers : [],
+    reminderText: reminderText || "",
+    customPrompt: customPrompt || "",
+    linkedWatcherId: linkedWatcherId ? String(linkedWatcherId).trim() : null,
+    nextRunAt: Date.now() + intervalMs,
+    createdAt: Date.now(),
+    lastRunAt: null,
+    runCount: 0,
+  };
+
+  tasks.push(task);
+  await saveScheduledTasks(tasks);
+  return task;
+}
+
+/**
  * List active scheduled tasks for a given chat or all chats
  */
 export async function listScheduledTasks(chatJid = null) {
@@ -243,6 +327,171 @@ export async function cancelScheduledTask(taskId, chatJid = null) {
 }
 
 // ==================== AUTONOMOUS EXECUTION ENGINE ====================
+
+/**
+ * Execute an iterative task step when due
+ */
+async function executeIterativeTask(task, conn) {
+  try {
+    const isGroup = task.chatJid.endsWith("@g.us");
+    if (!isGroup) {
+      task.nextRunAt = null;
+      let allTasks = await loadScheduledTasks();
+      allTasks = allTasks.filter((t) => t.id !== task.id);
+      await saveScheduledTasks(allTasks);
+      return;
+    }
+
+    if (task.actionType === "kick_next_member") {
+      let meta;
+      try {
+        meta = await conn.groupMetadata(task.chatJid);
+      } catch (err) {
+        console.error("[agentCron] Iterative task failed to fetch group metadata:", err?.message);
+        return;
+      }
+
+      const botJid = conn.user?.id ? normalizeNumber(conn.user.id.replace(/:\d+@/, "@")) : "";
+      const botLid = conn.user?.lid ? normalizeNumber(conn.user.lid) : "";
+      const creatorNum = normalizeNumber(task.creatorJid) || "";
+      const excluded = new Set((task.excludeUsers || []).map((u) => normalizeNumber(u)).filter(Boolean));
+
+      // Non-admin participants only
+      const eligible = (meta.participants || []).filter((p) => {
+        if (p.admin === "admin" || p.admin === "superadmin") return false;
+        const pNum = p.phoneNumber ? normalizeNumber(p.phoneNumber) : normalizeNumber(p.id);
+        if (!pNum) return false;
+        if (pNum === botJid || (botLid && pNum === botLid)) return false;
+        if (creatorNum && pNum === creatorNum) return false;
+        if (excluded.has(pNum)) return false;
+        return true;
+      });
+
+      if (eligible.length === 0) {
+        await conn.sendMessage(task.chatJid, {
+          text: "🏁 *[ITERATIVE LOOP COMPLETE]*\n_No eligible non-admin members remain in the group. The loop has concluded._",
+        });
+
+        if (task.linkedWatcherId) {
+          try {
+            const { cancelEventWatcher } = await import("./agentEvents.js");
+            await cancelEventWatcher(task.linkedWatcherId, task.chatJid);
+          } catch {
+            /* ignore */
+          }
+        }
+
+        let allTasks = await loadScheduledTasks();
+        allTasks = allTasks.filter((t) => t.id !== task.id);
+        await saveScheduledTasks(allTasks);
+        return;
+      }
+
+      const target = eligible[0];
+      const targetDisplay = target.phoneNumber || target.id.split("@")[0];
+
+      try {
+        await conn.groupParticipantsUpdate(task.chatJid, [target.id], "remove");
+        groupCache.delete(task.chatJid);
+      } catch (kickErr) {
+        await conn.sendMessage(task.chatJid, {
+          text: `⚠️ *[ITERATIVE KICK FAILED]* for @${targetDisplay}: ${kickErr?.message || kickErr}`,
+          mentions: [target.id],
+        });
+      }
+
+      task.iterationCount = (task.iterationCount || 0) + 1;
+      const remainingCount = eligible.length - 1;
+
+      await conn.sendMessage(task.chatJid, {
+        text: `⏳ *[AUTONOMOUS LOOP]* Removed @${targetDisplay}.\nRemaining non-admins: ${remainingCount}.\nNext removal in ${task.intervalStr || "1m"}.`,
+        mentions: [target.id],
+      });
+
+      let allTasks = await loadScheduledTasks();
+      const stored = allTasks.find((t) => t.id === task.id);
+
+      if (task.iterationCount >= task.maxIterations) {
+        await conn.sendMessage(task.chatJid, {
+          text: `🏁 *[ITERATIVE LOOP COMPLETE]*\nReached maximum iteration limit (${task.maxIterations}). Loop concluded.`,
+        });
+        allTasks = allTasks.filter((t) => t.id !== task.id);
+        await saveScheduledTasks(allTasks);
+        return;
+      }
+
+      if (
+        remainingCount === 0 &&
+        (task.terminationCondition === "until_no_non_admins" ||
+          task.terminationCondition === "until_empty")
+      ) {
+        await conn.sendMessage(task.chatJid, {
+          text: "🏁 *[ITERATIVE LOOP COMPLETE]*\nAll non-admin participants have been removed.",
+        });
+        if (task.linkedWatcherId) {
+          try {
+            const { cancelEventWatcher } = await import("./agentEvents.js");
+            await cancelEventWatcher(task.linkedWatcherId, task.chatJid);
+          } catch {
+            /* ignore */
+          }
+        }
+        allTasks = allTasks.filter((t) => t.id !== task.id);
+        await saveScheduledTasks(allTasks);
+        return;
+      }
+
+      if (stored) {
+        stored.nextRunAt = Date.now() + task.intervalMs;
+        stored.iterationCount = task.iterationCount;
+        await saveScheduledTasks(allTasks);
+      }
+    } else if (task.actionType === "send_reminder") {
+      if (task.reminderText) {
+        await conn.sendMessage(task.chatJid, { text: task.reminderText });
+      }
+      task.iterationCount = (task.iterationCount || 0) + 1;
+      let allTasks = await loadScheduledTasks();
+      const stored = allTasks.find((t) => t.id === task.id);
+      if (task.iterationCount >= task.maxIterations) {
+        allTasks = allTasks.filter((t) => t.id !== task.id);
+        await saveScheduledTasks(allTasks);
+      } else if (stored) {
+        stored.nextRunAt = Date.now() + task.intervalMs;
+        stored.iterationCount = task.iterationCount;
+        await saveScheduledTasks(allTasks);
+      }
+    } else if (task.actionType === "custom_prompt") {
+      const { runAgentPrompt } = await import("./aiAgent.js");
+      const syntheticMessage = {
+        from: task.chatJid,
+        sender:
+          task.creatorJid ||
+          (conn.user?.id ? normalizeNumber(conn.user.id) + "@s.whatsapp.net" : task.chatJid),
+        participant: task.creatorJid,
+        isGroup: true,
+        isBotMessage: false,
+        body: task.customPrompt,
+        message: { conversation: task.customPrompt },
+        key: { remoteJid: task.chatJid, id: `itask_${Date.now()}`, fromMe: false },
+      };
+      await runAgentPrompt({ prompt: task.customPrompt, message: syntheticMessage, conn });
+      task.iterationCount = (task.iterationCount || 0) + 1;
+      let allTasks = await loadScheduledTasks();
+      const stored = allTasks.find((t) => t.id === task.id);
+      if (task.iterationCount >= task.maxIterations) {
+        allTasks = allTasks.filter((t) => t.id !== task.id);
+        await saveScheduledTasks(allTasks);
+      } else if (stored) {
+        stored.nextRunAt = Date.now() + task.intervalMs;
+        stored.iterationCount = task.iterationCount;
+        await saveScheduledTasks(allTasks);
+      }
+    }
+  } catch (err) {
+    console.error(`[agentCron] Error executing iterative task ${task.id}:`, err?.message || err);
+  }
+}
 
 /**
  * Execute an autonomous task when due
@@ -320,15 +569,20 @@ async function tickScheduler(conn) {
       task.lastRunAt = now;
       task.runCount = (task.runCount || 0) + 1;
 
-      // Execute task asynchronously
-      executeAutonomousTask(task, conn);
-
-      // Handle next run
-      if (task.scheduleType === "cron" && task.cronExpression) {
-        task.nextRunAt = getNextCronRun(task.cronExpression, new Date(now));
+      if (task.isIterative) {
+        // Execute iterative task step asynchronously
+        executeIterativeTask(task, conn);
       } else {
-        // One-time task finished, mark null nextRunAt
-        task.nextRunAt = null;
+        // Execute standard autonomous task asynchronously
+        executeAutonomousTask(task, conn);
+
+        // Handle next run
+        if (task.scheduleType === "cron" && task.cronExpression) {
+          task.nextRunAt = getNextCronRun(task.cronExpression, new Date(now));
+        } else {
+          // One-time task finished, mark null nextRunAt
+          task.nextRunAt = null;
+        }
       }
     }
 

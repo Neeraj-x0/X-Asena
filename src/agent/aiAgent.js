@@ -619,6 +619,466 @@ export const AGENT_TOOLS = [
       },
     },
   },
+
+  // ==================== UNIVERSAL BOT COMMAND & PLUGIN TOOLS ====================
+  {
+    type: "function",
+    function: {
+      name: "execute_bot_command",
+      description:
+        "Execute ANY registered bot plugin command (e.g. 'ytdl', 'ping', 'runtime', 'antilink', 'welcome', 'goodbye', 'antispam', 'trt', 'qr', 'sticker', 'pin', 'weather', etc.) on behalf of the user.",
+      parameters: {
+        type: "object",
+        properties: {
+          commandName: {
+            type: "string",
+            description: "Name of the bot command without prefix (e.g. 'ping', 'ytdl', 'antilink', 'welcome', 'qr', 'trt')",
+          },
+          args: {
+            type: "string",
+            description: "Optional argument string to pass to the command (e.g. 'on', 'https://...', 'es Hello')",
+          },
+        },
+        required: ["commandName"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_bot_commands",
+      description: "List all built-in bot plugin commands available across all categories (admin, group, download, tools, sticker, utility, social, etc.).",
+      parameters: {
+        type: "object",
+        properties: {
+          category: {
+            type: "string",
+            description: "Optional category filter (e.g. 'admin', 'group', 'download', 'tools', 'sticker', 'utility', 'owner')",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+
+  // ==================== REAL-TIME EVENT AUTOMATION & WATCHERS ====================
+  {
+    type: "function",
+    function: {
+      name: "watch_group_event",
+      description:
+        "Register a reactive real-time event watcher in this group. Triggers an autonomous action/prompt whenever an event occurs (e.g. member leaves/joins, promotion/demotion, message contains keyword, link posted, profanity detected, or media sent) and can automatically cancel linked fallback tasks.",
+      parameters: {
+        type: "object",
+        properties: {
+          eventType: {
+            type: "string",
+            enum: [
+              "member_leave",
+              "member_join",
+              "member_promote",
+              "member_demote",
+              "message_contains",
+              "link_detected",
+              "profanity_detected",
+              "media_received",
+            ],
+            description: "Event type to watch for",
+          },
+          targetUser: {
+            type: "string",
+            description: "Optional specific user to watch (phone number, '@user', or JID). If omitted, fires for any user.",
+          },
+          matchPattern: {
+            type: "string",
+            description: "Optional keyword or regex pattern (for message_contains)",
+          },
+          action: {
+            type: "string",
+            description: "Action or prompt to execute when event triggers (e.g. 'unlock the group', 'warn the sender', 'send_group_message: Goodbye!')",
+          },
+          linkedTaskId: {
+            type: "string",
+            description: "Optional ID of a scheduled iterative task to cancel immediately when this watcher triggers",
+          },
+          once: {
+            type: "boolean",
+            description: "Whether watcher auto-cancels after triggering once (default: true)",
+          },
+        },
+        required: ["eventType", "action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_event_watchers",
+      description: "List all active event watchers currently monitoring this group chat.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "cancel_event_watcher",
+      description: "Cancel an active event watcher by its ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          watcherId: { type: "string", description: "Watcher ID to cancel (e.g. 'watch_17325...')" },
+        },
+        required: ["watcherId"],
+      },
+    },
+  },
+
+  // ==================== ITERATIVE AUTONOMOUS TASK LOOPS ====================
+  {
+    type: "function",
+    function: {
+      name: "schedule_iterative_task",
+      description:
+        "Schedule an iterative looping task that performs a step action at regular intervals until a termination condition is met (e.g. kick non-admins one by one each minute until empty, send periodic reminders, or execute custom prompt loops). Protected by anti-ban rate limiting.",
+      parameters: {
+        type: "object",
+        properties: {
+          interval: {
+            type: "string",
+            description: "Interval between loop steps (e.g. '1m', '30s', '2m', 'every minute'). Minimum safe delay is 30s.",
+          },
+          actionType: {
+            type: "string",
+            enum: ["kick_next_member", "send_reminder", "custom_prompt"],
+            description: "Step action to execute on each iteration",
+          },
+          terminationCondition: {
+            type: "string",
+            enum: ["until_no_non_admins", "until_empty", "max_count", "until_cancelled"],
+            description: "Condition that causes the loop to finish",
+          },
+          maxIterations: {
+            type: "number",
+            description: "Safety cap on maximum iterations (default: 50)",
+          },
+          targetRole: {
+            type: "string",
+            enum: ["non_admin", "all"],
+            description: "Target role (default: non_admin, ensuring admins and bot are never targeted)",
+          },
+          excludeUsers: {
+            type: "array",
+            items: { type: "string" },
+            description: "List of user numbers or JIDs to exclude/protect from the loop",
+          },
+          reminderText: {
+            type: "string",
+            description: "Message text if actionType is 'send_reminder'",
+          },
+          customPrompt: {
+            type: "string",
+            description: "Autonomous prompt to run on each iteration if actionType is 'custom_prompt'",
+          },
+          linkedWatcherId: {
+            type: "string",
+            description: "Optional linked event watcher ID (e.g. to stop when @user leaves)",
+          },
+        },
+        required: ["interval", "actionType"],
+      },
+    },
+  },
+
+  // ==================== EXTENDED GROUP SETTINGS & MODERATION ====================
+  {
+    type: "function",
+    function: {
+      name: "unlock_group",
+      description: "Unlock / unmute the group so all participants can send messages.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "lock_group",
+      description: "Lock / mute the group so only administrators can send messages.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_group_edit_permission",
+      description: "Configure who can edit group info (subject, description, profile photo).",
+      parameters: {
+        type: "object",
+        properties: {
+          permission: {
+            type: "string",
+            enum: ["admins_only", "all_members"],
+            description: "Who can edit group info",
+          },
+        },
+        required: ["permission"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_group_member_add_mode",
+      description: "Set member join approval mode: require admin approval or allow all members to add.",
+      parameters: {
+        type: "object",
+        properties: {
+          mode: {
+            type: "string",
+            enum: ["admin_approval", "all_member_add"],
+            description: "Join approval mode",
+          },
+        },
+        required: ["mode"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_group_invite_link",
+      description: "Retrieve or generate the WhatsApp invite link for the current group.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "revoke_group_invite_link",
+      description: "Revoke the existing group invite link and generate a fresh one.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_disappearing_messages",
+      description: "Configure disappearing / ephemeral messages timer for the group chat.",
+      parameters: {
+        type: "object",
+        properties: {
+          duration: {
+            type: "number",
+            enum: [0, 86400, 604800, 7776000],
+            description: "Duration in seconds: 0 (Off), 86400 (24 hours), 604800 (7 days), 7776000 (90 days)",
+          },
+        },
+        required: ["duration"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "leave_group",
+      description: "Instruct the bot to leave the group chat. STRICT SECURITY: Caller must be an admin or owner.",
+      parameters: {
+        type: "object",
+        properties: {
+          reason: { type: "string", description: "Reason for leaving" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "kick_next_member",
+      description: "Remove exactly one non-admin participant from the group (safe single step).",
+      parameters: {
+        type: "object",
+        properties: {
+          excludeUsers: {
+            type: "array",
+            items: { type: "string" },
+            description: "List of numbers or JIDs to exclude/protect",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "warn_group_member",
+      description: "Add a warning to a group member for rule violations. Automatically tracks warning counts.",
+      parameters: {
+        type: "object",
+        properties: {
+          user: { type: "string", description: "Phone number, '@user', or JID of the member to warn" },
+          reason: { type: "string", description: "Reason for the warning" },
+        },
+        required: ["user"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "reset_member_warnings",
+      description: "Reset / clear all warnings for a member in the group.",
+      parameters: {
+        type: "object",
+        properties: {
+          user: { type: "string", description: "Phone number, '@user', or JID of the member" },
+        },
+        required: ["user"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_member_warnings",
+      description: "Check how many warnings a group member currently has.",
+      parameters: {
+        type: "object",
+        properties: {
+          user: { type: "string", description: "Phone number, '@user', or JID of the member" },
+        },
+        required: ["user"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_inactive_members",
+      description: "Identify inactive members in the group by comparing the participant roster against recent conversation activity.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: {
+            type: "number",
+            description: "Maximum number of inactive members to return (default: 20)",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "tag_filtered_members",
+      description: "Tag / mention specific subsets of members ('all', 'admins', 'non_admins', or specific JIDs) with an announcement.",
+      parameters: {
+        type: "object",
+        properties: {
+          filter: {
+            type: "string",
+            enum: ["all", "admins", "non_admins"],
+            description: "Which subset of members to tag",
+          },
+          text: {
+            type: "string",
+            description: "Announcement text to accompany the tags",
+          },
+        },
+        required: ["filter", "text"],
+      },
+    },
+  },
+
+  // ==================== INTERACTIVE & ENGAGEMENT TOOLS ====================
+  {
+    type: "function",
+    function: {
+      name: "create_group_poll",
+      description: "Create an interactive native WhatsApp poll in the current chat.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "The poll question or topic" },
+          options: {
+            type: "array",
+            items: { type: "string" },
+            description: "List of selectable poll options (between 2 and 12 options)",
+          },
+          selectableCount: {
+            type: "number",
+            description: "Number of options a participant can select (1 for single-choice, >1 for multi-choice)",
+          },
+        },
+        required: ["question", "options"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_reaction",
+      description: "React to a message with an emoji.",
+      parameters: {
+        type: "object",
+        properties: {
+          emoji: { type: "string", description: "Single emoji to react with (e.g. '👍', '🔥', '❤️')" },
+        },
+        required: ["emoji"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_message",
+      description: "Delete / revoke the quoted message from the chat (admin privileges required).",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "pin_chat_message",
+      description: "Pin the quoted message in the chat for a duration (24h, 7d, 30d, or unpin).",
+      parameters: {
+        type: "object",
+        properties: {
+          duration: {
+            type: "string",
+            enum: ["24h", "7d", "30d", "unpin"],
+            description: "Pin duration: '24h', '7d', '30d', or 'unpin' to remove pin",
+          },
+        },
+        required: ["duration"],
+      },
+    },
+  },
 ];
 
 /**
@@ -1151,6 +1611,471 @@ export async function executeAgentTool(name, args, context) {
     return { query: args.query, resultsCount: matches.length, results: matches };
   }
 
+  // ==================== UNIVERSAL BOT COMMAND & PLUGIN TOOLS ====================
+  if (name === "execute_bot_command") {
+    const { commandName, args: cmdArgs } = args;
+    if (!commandName) return { error: "commandName is required" };
+    try {
+      const { findCommand, commandIndex, commands } = await import("../plugins.js");
+      const cleanName = commandName.trim().replace(/^#+/, "").toLowerCase();
+      let cmd = commandIndex.get(cleanName);
+      if (!cmd) {
+        cmd = commands.find(
+          (c) => c.patternName && c.patternName.toLowerCase() === cleanName
+        );
+      }
+      if (!cmd) {
+        const fullText = `${BOT_INFO.PREFIX}${cleanName} ${cmdArgs || ""}`.trim();
+        cmd = findCommand(fullText);
+      }
+      if (!cmd) {
+        return {
+          error: `Bot command "${cleanName}" not found. Call list_bot_commands to see available plugin commands.`,
+        };
+      }
+
+      if (cmd.adminOnly && !callerAdmin) {
+        return { error: `PERMISSION DENIED: Command "${cleanName}" requires group admin permissions.` };
+      }
+      if (cmd.botAdminRequired && !botAdmin) {
+        return { error: `PERMISSION DENIED: Command "${cleanName}" requires bot to be an admin.` };
+      }
+      if (cmd.groupOnly && !isGroup) {
+        return { error: `Command "${cleanName}" can only be run in a group.` };
+      }
+
+      const fullBody = `${BOT_INFO.PREFIX}${cleanName} ${cmdArgs || ""}`.trim();
+      const syntheticMsg = {
+        ...message,
+        body: fullBody,
+        from: groupJid || message.from,
+        sender: callerJid,
+        participant: callerJid,
+        isGroup,
+        message: { conversation: fullBody },
+        quoted: message.quoted || null,
+      };
+
+      await cmd.function(syntheticMsg, conn);
+      return { success: true, executed: cleanName, args: cmdArgs || "" };
+    } catch (err) {
+      return { error: `Error executing command "${commandName}": ${err?.message || err}` };
+    }
+  }
+
+  if (name === "list_bot_commands") {
+    try {
+      const { getCommands, getCommandsByType } = await import("../plugins.js");
+      const category = args.category ? String(args.category).toLowerCase().trim() : null;
+      const cmds = category ? getCommandsByType(category) : getCommands();
+      const summary = cmds
+        .filter((c) => c.patternName && !c.dontAddCommandList)
+        .map((c) => ({
+          name: c.patternName,
+          type: c.type || "misc",
+          desc: c.desc || "No description",
+          adminOnly: Boolean(c.adminOnly),
+          groupOnly: Boolean(c.groupOnly),
+        }));
+      return { total: summary.length, category: category || "all", commands: summary };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  // ==================== REAL-TIME EVENT AUTOMATION ====================
+  if (name === "watch_group_event") {
+    if (!isGroup) return { error: "Event watchers can only be registered in a group chat." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller must be an admin." };
+    try {
+      const { createEventWatcher } = await import("./agentEvents.js");
+      const watcher = await createEventWatcher({
+        groupJid,
+        eventType: args.eventType,
+        targetUser: args.targetUser,
+        matchPattern: args.matchPattern,
+        action: args.action,
+        linkedTaskId: args.linkedTaskId,
+        once: args.once !== false,
+        creatorJid,
+      });
+      return { success: true, watcherId: watcher.id, details: watcher };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "list_event_watchers") {
+    try {
+      const { listEventWatchers } = await import("./agentEvents.js");
+      const list = await listEventWatchers(groupJid);
+      return { total: list.length, watchers: list };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "cancel_event_watcher") {
+    try {
+      const { cancelEventWatcher } = await import("./agentEvents.js");
+      const ok = await cancelEventWatcher(args.watcherId, groupJid);
+      return { success: ok, watcherId: args.watcherId };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  // ==================== ITERATIVE TASK LOOPS ====================
+  if (name === "schedule_iterative_task") {
+    if (!isGroup) return { error: "Iterative tasks can only run in a group chat." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller must be an admin." };
+    try {
+      const { createIterativeTask } = await import("./agentCron.js");
+      const task = await createIterativeTask({
+        groupJid,
+        interval: args.interval || "1m",
+        actionType: args.actionType || "kick_next_member",
+        terminationCondition: args.terminationCondition || "until_no_non_admins",
+        maxIterations: args.maxIterations || 50,
+        targetRole: args.targetRole || "non_admin",
+        excludeUsers: args.excludeUsers || [],
+        reminderText: args.reminderText || "",
+        customPrompt: args.customPrompt || "",
+        linkedWatcherId: args.linkedWatcherId || null,
+        creatorJid,
+      });
+      return { success: true, taskId: task.id, details: task };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  // ==================== EXTENDED GROUP SETTINGS & MODERATION ====================
+  if (name === "unlock_group") {
+    if (!isGroup) return { error: "Group only." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not an admin." };
+    if (!botAdmin) return { error: "PERMISSION DENIED: Bot is not an admin." };
+    try {
+      await conn.groupSettingUpdate(groupJid, "not_announcement");
+      return { success: true, status: "unlocked (all members can send messages)" };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "lock_group") {
+    if (!isGroup) return { error: "Group only." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not an admin." };
+    if (!botAdmin) return { error: "PERMISSION DENIED: Bot is not an admin." };
+    try {
+      await conn.groupSettingUpdate(groupJid, "announcement");
+      return { success: true, status: "locked (only admins can send messages)" };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "set_group_edit_permission") {
+    if (!isGroup) return { error: "Group only." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not an admin." };
+    if (!botAdmin) return { error: "PERMISSION DENIED: Bot is not an admin." };
+    try {
+      const mode = args.permission === "admins_only" ? "locked" : "unlocked";
+      await conn.groupSettingUpdate(groupJid, mode);
+      return { success: true, permission: args.permission };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "set_group_member_add_mode") {
+    if (!isGroup) return { error: "Group only." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not an admin." };
+    if (!botAdmin) return { error: "PERMISSION DENIED: Bot is not an admin." };
+    try {
+      const mode = args.mode === "admin_approval" ? "admin_approval" : "all_member_add";
+      await conn.groupMemberAddMode(groupJid, mode);
+      return { success: true, memberAddMode: mode };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "get_group_invite_link") {
+    if (!isGroup) return { error: "Group only." };
+    if (!botAdmin) return { error: "PERMISSION DENIED: Bot must be admin to get invite link." };
+    try {
+      const code = await conn.groupInviteCode(groupJid);
+      return { success: true, code, inviteLink: `https://chat.whatsapp.com/${code}` };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "revoke_group_invite_link") {
+    if (!isGroup) return { error: "Group only." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller must be admin." };
+    if (!botAdmin) return { error: "PERMISSION DENIED: Bot must be admin." };
+    try {
+      const newCode = await conn.groupRevokeInviteCode(groupJid);
+      return { success: true, newCode, newInviteLink: `https://chat.whatsapp.com/${newCode}` };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "set_disappearing_messages") {
+    if (!isGroup) return { error: "Group only." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller must be admin." };
+    if (!botAdmin) return { error: "PERMISSION DENIED: Bot must be admin." };
+    try {
+      const duration = parseInt(args.duration, 10) || 0;
+      await conn.groupToggleEphemeral(groupJid, duration);
+      return { success: true, durationSeconds: duration };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "leave_group") {
+    if (!isGroup) return { error: "Group only." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller must be an admin or owner." };
+    try {
+      await conn.sendMessage(groupJid, { text: `👋 Goodbye! ${args.reason ? `(${args.reason})` : ""}` });
+      await conn.groupLeave(groupJid);
+      return { success: true, left: groupJid };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "kick_next_member") {
+    if (!isGroup) return { error: "Group only." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not an admin." };
+    if (!botAdmin) return { error: "PERMISSION DENIED: Bot is not an admin." };
+    let meta = groupCache.get(groupJid);
+    if (!meta) {
+      meta = await conn.groupMetadata(groupJid);
+      groupCache.set(groupJid, meta);
+    }
+    const botNum = conn.user?.id ? normalizeNumber(conn.user.id) : "";
+    const botLid = conn.user?.lid ? normalizeNumber(conn.user.lid) : "";
+    const callerNum = normalizeNumber(callerJid);
+    const excluded = new Set((args.excludeUsers || []).map((u) => normalizeNumber(u)).filter(Boolean));
+
+    const eligible = (meta.participants || []).filter((p) => {
+      if (p.admin === "admin" || p.admin === "superadmin") return false;
+      const pNum = p.phoneNumber ? normalizeNumber(p.phoneNumber) : normalizeNumber(p.id);
+      if (!pNum) return false;
+      if (pNum === botNum || (botLid && pNum === botLid)) return false;
+      if (pNum === callerNum) return false;
+      if (excluded.has(pNum)) return false;
+      return true;
+    });
+
+    if (eligible.length === 0) {
+      return { success: true, status: "No eligible non-admin members found to remove." };
+    }
+
+    const target = eligible[0];
+    try {
+      await conn.groupParticipantsUpdate(groupJid, [target.id], "remove");
+      groupCache.delete(groupJid);
+      return { success: true, removed: target.id, remainingEligible: eligible.length - 1 };
+    } catch (err) {
+      return { error: `Failed to remove ${target.id}: ${err?.message || err}` };
+    }
+  }
+
+  if (name === "warn_group_member") {
+    if (!isGroup) return { error: "Group only." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller must be an admin." };
+    try {
+      const { addWarn } = await import("../utils/groupSettings.js");
+      const userNorm = normalizeNumber(args.user);
+      if (!userNorm) return { error: "Invalid user specified." };
+      const count = await addWarn(groupJid, userNorm);
+      return { success: true, user: userNorm, currentWarnings: count, reason: args.reason || "" };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "reset_member_warnings") {
+    if (!isGroup) return { error: "Group only." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller must be an admin." };
+    try {
+      const { resetWarns } = await import("../utils/groupSettings.js");
+      const userNorm = normalizeNumber(args.user);
+      if (!userNorm) return { error: "Invalid user specified." };
+      await resetWarns(groupJid, userNorm);
+      return { success: true, user: userNorm, warnings: 0 };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "get_member_warnings") {
+    if (!isGroup) return { error: "Group only." };
+    try {
+      const { getWarns } = await import("../utils/groupSettings.js");
+      const userNorm = normalizeNumber(args.user);
+      if (!userNorm) return { error: "Invalid user specified." };
+      const count = await getWarns(groupJid, userNorm);
+      return { user: userNorm, warnings: count };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "get_inactive_members") {
+    if (!isGroup) return { error: "Group only." };
+    let meta = groupCache.get(groupJid);
+    if (!meta) {
+      meta = await conn.groupMetadata(groupJid);
+      groupCache.set(groupJid, meta);
+    }
+    const history = getChatHistory(groupJid, 100);
+    const activeSenders = new Set();
+    for (const h of history) {
+      if (h.sender && h.sender !== "system") {
+        activeSenders.add(normalizeNumber(h.sender));
+      }
+    }
+    const limit = args.limit || 20;
+    const inactive = (meta.participants || [])
+      .filter((p) => {
+        const pNum = p.phoneNumber ? normalizeNumber(p.phoneNumber) : normalizeNumber(p.id);
+        return pNum && !activeSenders.has(pNum);
+      })
+      .slice(0, limit)
+      .map((p) => ({
+        jid: p.id,
+        phoneNumber: p.phoneNumber || "",
+        isAdmin: Boolean(p.admin),
+      }));
+
+    return { totalInactiveFound: inactive.length, inactiveMembers: inactive };
+  }
+
+  if (name === "tag_filtered_members") {
+    if (!isGroup) return { error: "Group only." };
+    if (!callerAdmin) return { error: "PERMISSION DENIED: Caller must be admin." };
+    let meta = groupCache.get(groupJid);
+    if (!meta) {
+      meta = await conn.groupMetadata(groupJid);
+      groupCache.set(groupJid, meta);
+    }
+    let targets = [];
+    if (args.filter === "admins") {
+      targets = (meta.participants || []).filter((p) => p.admin);
+    } else if (args.filter === "non_admins") {
+      targets = (meta.participants || []).filter((p) => !p.admin);
+    } else {
+      targets = meta.participants || [];
+    }
+    const mentions = targets.map((p) => p.id);
+    await conn.sendMessage(groupJid, {
+      text: args.text,
+      mentions,
+    });
+    return { success: true, taggedCount: mentions.length };
+  }
+
+  // ==================== INTERACTIVE & ENGAGEMENT TOOLS ====================
+  if (name === "create_group_poll") {
+    if (!isGroup) return { error: "Group only." };
+    if (!Array.isArray(args.options) || args.options.length < 2) {
+      return { error: "Poll requires at least 2 options." };
+    }
+    try {
+      await conn.sendMessage(groupJid, {
+        poll: {
+          name: args.question,
+          values: args.options,
+          selectableCount: args.selectableCount || 1,
+        },
+      });
+      return { success: true, question: args.question, optionsCount: args.options.length };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "send_reaction") {
+    try {
+      const targetKey = message.quoted?.key || message.key;
+      await conn.sendMessage(message.from, {
+        react: { text: args.emoji || "👍", key: targetKey },
+      });
+      return { success: true, emoji: args.emoji };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "delete_message") {
+    if (!message.quoted?.key) {
+      return { error: "No quoted message found to delete. The user must reply to or quote a message." };
+    }
+    if (isGroup && !botAdmin) {
+      return { error: "PERMISSION DENIED: Bot is not admin and cannot delete messages from other users." };
+    }
+    try {
+      await conn.sendMessage(message.from, { delete: message.quoted.key });
+      return { success: true, deletedKey: message.quoted.key.id };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
+  if (name === "pin_chat_message") {
+    if (!message.quoted?.key) {
+      return { error: "No quoted message found to pin. The user must reply to or quote a message." };
+    }
+    if (isGroup && !callerAdmin) {
+      return { error: "PERMISSION DENIED: Caller must be admin to pin messages." };
+    }
+    if (isGroup && !botAdmin) {
+      return { error: "PERMISSION DENIED: Bot must be admin to pin messages." };
+    }
+    try {
+      const { proto } = await import("@whiskeysockets/baileys");
+      const duration = args.duration || "24h";
+      if (duration === "unpin") {
+        await conn.relayMessage(
+          message.from,
+          {
+            pinInChatMessage: {
+              key: message.quoted.key,
+              type: proto.Message.PinInChatMessage.Type.UNPIN_FOR_ALL,
+            },
+          },
+          {}
+        );
+        return { success: true, status: "unpinned" };
+      }
+      let timeSec = 86400; // 24h
+      if (duration === "7d") timeSec = 604800;
+      else if (duration === "30d") timeSec = 2592000;
+
+      await conn.relayMessage(
+        message.from,
+        {
+          pinInChatMessage: {
+            key: message.quoted.key,
+            type: proto.Message.PinInChatMessage.Type.PIN_FOR_ALL,
+            time: timeSec,
+          },
+        },
+        {}
+      );
+      return { success: true, status: "pinned", duration };
+    } catch (err) {
+      return { error: err?.message || err };
+    }
+  }
+
   return { error: `Unknown tool: ${name}` };
 }
 
@@ -1324,7 +2249,19 @@ export async function runAgentPrompt({ prompt, message, conn }) {
     `18. WhatsApp LID vs Phone Number (PN) Differentiation:\n` +
     `    • WhatsApp has two distinct user identifier formats: Phone Number JID (<phone>@s.whatsapp.net) and LID (<id>@lid).\n` +
     `    • An LID is an internal WhatsApp privacy identity, NOT a phone number. NEVER append @s.whatsapp.net to LID digits.\n` +
-    `    • When sending direct messages, you can target phone numbers, pass 'caller', or pass the raw LID if the phone number is hidden.\n`;
+    `    • When sending direct messages, you can target phone numbers, pass 'caller', or pass the raw LID if the phone number is hidden.\n` +
+    `19. Universal Bot Command & Plugin Dispatch:\n` +
+    `    • You can execute ANY registered bot command or plugin (e.g. 'ytdl', 'ping', 'runtime', 'antilink', 'welcome', 'qr', 'trt', 'weather', 'status', etc.) with arguments using 'execute_bot_command'.\n` +
+    `    • Explore all bot plugin capabilities using 'list_bot_commands'. NEVER say you cannot do a task if a command or plugin can fulfill it!\n` +
+    `20. Real-Time Event Automations & Watchers:\n` +
+    `    • Monitor real-time group events (member leave/join, promotion/demotion, keywords, links, profanities, media) with 'watch_group_event'.\n` +
+    `    • When triggered, it executes your defined action/prompt autonomously and can auto-cancel linked tasks.\n` +
+    `21. Iterative Task Loops:\n` +
+    `    • For repeated or cascading operations (e.g. kicking non-admins one by one each minute until empty, or sending recurring notices), use 'schedule_iterative_task'.\n` +
+    `22. Complete Group & Moderation Suite:\n` +
+    `    • Control group settings ('lock_group', 'unlock_group', 'set_group_edit_permission', 'set_group_member_add_mode', 'get_group_invite_link', 'revoke_group_invite_link', 'set_disappearing_messages', 'leave_group').\n` +
+    `    • Moderate members ('kick_next_member', 'warn_group_member', 'reset_member_warnings', 'get_member_warnings', 'get_inactive_members', 'tag_filtered_members').\n` +
+    `    • Interactive messages ('create_group_poll', 'send_reaction', 'delete_message', 'pin_chat_message').\n`;
 
   // Multi-Modal Vision: Check if an image is attached or quoted
   let imageBase64 = null;

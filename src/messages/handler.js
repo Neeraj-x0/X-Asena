@@ -45,6 +45,14 @@ export async function messageHandler(params) {
     if (message.isBotMessage) return;
     if (!message.body) return;
 
+    // Autonomous Message Event Watchers
+    try {
+      const { triggerMessageEventWatchers } = await import("../agent/agentEvents.js");
+      triggerMessageEventWatchers({ message, conn }).catch(() => {});
+    } catch {
+      /* ignore */
+    }
+
     if (!message.body.startsWith(BOT_INFO.PREFIX)) {
       try {
         const { handleAdminConfirmation } = await import("../agent/agentGuardrails.js");

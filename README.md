@@ -159,6 +159,11 @@ The agent can be prompted in natural language simply by tagging `@bot` in any me
 
 | Capability | Description | Tool |
 |------------|-------------|------|
+| **Universal Command Dispatch** | Executes any registered bot command or plugin (ytdl, trt, qr, etc.) dynamically | `execute_bot_command`, `list_bot_commands` |
+| **Real-Time Event Automation** | Watches for member leaves/joins, messages, links, media, and triggers actions | `watch_group_event`, `#agentwatchers` |
+| **Iterative Autonomous Loops** | Step-by-step looping tasks with termination conditions and anti-ban pacing | `schedule_iterative_task` |
+| **Group Administration Suite** | Lock/unlock, permissions, invite links, disappearing messages, and approval modes | `unlock_group`, `lock_group`, `set_disappearing_messages`, etc. |
+| **Advanced Moderation & Polling** | Warnings, inactive audits, filtered tagging, and interactive polls | `warn_group_member`, `get_inactive_members`, `create_group_poll` |
 | **Model Auto-Discovery** | Dynamically queries `/v1/models` to list and select models | `#agentconfig` |
 | **Direct Messaging (DMs)** | Paced private messaging with anti-ban human typing delays | `send_direct_message`, `send_batch_dms` |
 | **Autonomous Cron** | Self-initiating scheduled tasks via cron or relative delays | `schedule_task`, `#agenttasks` |
@@ -199,6 +204,7 @@ The bot features **148 commands** organized across **13 dedicated categories**. 
 | `#agentkb` | `#agentkb [add\|list\|del\|search]` | Manage persistent Knowledge Base articles |
 | `#agentmemory` | `#agentmemory [clear]` | View or reset agent persistent memories |
 | `#agenttasks` | `#agenttasks [cancel <id>]` | Inspect or cancel autonomous scheduled jobs |
+| `#agentwatchers` | `#agentwatchers [cancel <id>]` | Inspect or cancel active real-time event watchers |
 | `#confirm` | `#confirm <id>` | Approve a high-risk mass action flagged by guardrails |
 | `#cancelaction` | `#cancelaction <id>` | Cancel a pending high-risk action |
 

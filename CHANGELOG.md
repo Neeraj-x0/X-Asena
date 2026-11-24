@@ -18,6 +18,12 @@ Major feature release introducing an autonomous multi-modal agentic AI layer, Wh
 ### Added
 
 - **Autonomous Agentic AI Layer (`src/agent/`)**:
+  - Full suite of **56 native function tools** enabling complete autonomous execution of any WhatsApp administration, moderation, polling, and intelligence task.
+  - **Universal Bot Command Dispatch (`execute_bot_command`, `list_bot_commands`)**: The agent can now programmatically execute any of the 148 registered bot plugin commands (e.g. `ytdl`, `ping`, `runtime`, `antilink`, `welcome`, `goodbye`, `antispam`, `trt`, `qr`, `sticker`, `pin`, `weather`, etc.) with arguments directly on behalf of the user.
+  - **Real-Time Event Automation & Watchers (`src/agent/agentEvents.js`, `#agentwatchers`)**: Dynamic event monitoring for member leaves (`member_leave`), joins (`member_join`), promotions, demotions, message keyword matches, links, profanity, and media arrivals, triggering autonomous actions and auto-cancelling linked fallback tasks.
+  - **Iterative Autonomous Loops (`schedule_iterative_task`)**: Configurable repetitive task loops (e.g. kicking non-admins one by one each minute until empty, periodic reminders, or custom prompt iterations) backed by WhatsApp anti-ban rate limiting.
+  - **Comprehensive Group Administration**: Tools for group locking/unlocking (`unlock_group`, `lock_group`), edit permissions (`set_group_edit_permission`), member add approval modes (`set_group_member_add_mode`), invite link generation & revocation (`get_group_invite_link`, `revoke_group_invite_link`), disappearing messages (`set_disappearing_messages`), and bot departure (`leave_group`).
+  - **Advanced Moderation & Engagement**: Native WhatsApp interactive polls (`create_group_poll`), message reactions (`send_reaction`), message pinning (`pin_chat_message`), message deletion (`delete_message`), member warnings (`warn_group_member`, `reset_member_warnings`), inactive member audits (`get_inactive_members`), single-step kicks (`kick_next_member`), and mass filtered tags (`tag_filtered_members`).
   - Natural language triggers (`@bot <prompt>` and `#agent` / `#ask`).
   - OpenAI-compatible API backend with automatic model discovery (`#agentconfig`).
   - Persistent conversational memory layer (`#agentmemory`) storing facts, rules, and notes across bot restarts.

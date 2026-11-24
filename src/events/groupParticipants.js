@@ -35,6 +35,16 @@ export function attachGroupParticipantEvents(conn) {
 
       groupCache.delete(groupJid);
 
+      // Autonomous Event Watchers Trigger
+      try {
+        const { triggerGroupEventWatchers } = await import("../agent/agentEvents.js");
+        triggerGroupEventWatchers({ groupJid, action, participants, conn }).catch((e) =>
+          logger.warn("triggerGroupEventWatchers:", e?.message || e)
+        );
+      } catch {
+        /* ignore */
+      }
+
       const settings = await getGroupSettings(groupJid);
       let meta = groupCache.get(groupJid);
       try {

@@ -17,6 +17,7 @@ import { messageHandler } from "../messages/handler.js";
 import { setConnection } from "../terminal/handler.js";
 import { groupCache, msgCache } from "../utils/cache.js";
 import { attachGroupParticipantEvents } from "../events/groupParticipants.js";
+import { attachCallEvents } from "../events/callHandler.js";
 import {
   startReminderScheduler,
   stopReminderScheduler,
@@ -245,6 +246,7 @@ async function connect() {
 
     conn.ev.on("creds.update", saveCreds);
     attachGroupParticipantEvents(conn);
+    attachCallEvents(conn);
 
     conn.ev.on("groups.update", async (updates) => {
       for (const update of updates) {

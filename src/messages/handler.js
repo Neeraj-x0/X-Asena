@@ -45,7 +45,16 @@ export async function messageHandler(params) {
     if (message.isBotMessage) return;
     if (!message.body) return;
 
-    if (!message.body.startsWith(BOT_INFO.PREFIX)) return;
+    if (!message.body.startsWith(BOT_INFO.PREFIX)) {
+      try {
+        const { checkAndHandleAgentTrigger } = await import("../agent/aiAgent.js");
+        const handled = await checkAndHandleAgentTrigger({ message, conn });
+        if (handled) return;
+      } catch {
+        /* non-agent message */
+      }
+      return;
+    }
 
     const command = findCommand(message.body);
     if (!command) return;

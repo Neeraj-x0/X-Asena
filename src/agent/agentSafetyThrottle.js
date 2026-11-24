@@ -1,12 +1,14 @@
 /**
  * Agent Safety Throttle & Anti-Ban Protection
- * Enforces DM restrictions, zero-tolerance profanity/abuse filtering ("myr"),
- * and aggressive rate-limiting/anti-spam protection to prevent WhatsApp number bans.
+ * Provides safe WhatsApp direct messaging (DMs), group messaging,
+ * zero-tolerance profanity/abuse filtering ("myr"), and aggressive
+ * rate-limiting/pacing to prevent WhatsApp number bans.
  *
  * @module agent/agentSafetyThrottle
  */
 
 import { BOT_INFO } from "../config/constants.js";
+import { normalizeNumber } from "../utils/access.js";
 
 // ==================== PROFANITY & ABUSE PATTERNS ====================
 
@@ -41,37 +43,20 @@ export function containsProfanityOrAbuse(text) {
   return { hasProfanity: false, matchedWord: "" };
 }
 
-// ==================== DM RESTRICTION PATTERNS ====================
-
-const DM_REQUEST_PATTERNS = [
-  /(send|blast|forward|deliver)\s+(a\s+)?(dm|private\s+message|personal\s+message|direct\s+message)/i,
-  /\b(dm|privately\s+message)\s+(all|everyone|each|them|users?|members?|participants?|\+\d+|\d{8,})/i,
-  /\bmessage\s+(everyone|all\s+members?|them)\s+(in\s+private|in\s+dm|privately)\b/i,
-  /\b(send|text)\s+(\+\d{8,}|\d{10,})\s+(in\s+private|privately|via\s+dm)/i,
-];
-
-/**
- * Check if prompt is asking to send private messages/DMs to users
- *
- * @param {string} prompt
- * @returns {boolean}
- */
-export function isDmRequest(prompt) {
-  if (!prompt || typeof prompt !== "string") return false;
-  return DM_REQUEST_PATTERNS.some((p) => p.test(prompt));
-}
-
 // ==================== ANTI-SPAM & ANTI-BAN RATE LIMITER ====================
 
-// Cooldown state per chat
+// Cooldown tracking per chat / recipient JID
 const chatLastSent = new Map(); // chatJid -> timestamp
 const chatMinuteWindows = new Map(); // chatJid -> [timestamps]
 const globalMinuteWindow = []; // [timestamps]
 
-const MIN_INTER_MESSAGE_INTERVAL_MS = 2500; // 2.5 seconds minimum spacing
-const MAX_MESSAGES_PER_MINUTE_CHAT = 5; // Max 5 automated msgs / min / chat
-const MAX_MESSAGES_PER_MINUTE_GLOBAL = 20; // Max 20 automated msgs / min across all chats
+const MIN_GROUP_INTERVAL_MS = 2500; // 2.5s minimum between group messages
+const MIN_DM_INTERVAL_MS = 3500; // 3.5s minimum between DMs
+const MAX_MESSAGES_PER_MINUTE_CHAT = 5; // Max 5 msgs / min / chat
+const MAX_DMS_PER_MINUTE_GLOBAL = 10; // Max 10 DMs / min across all users
+const MAX_MESSAGES_PER_MINUTE_GLOBAL = 25; // Max 25 total msgs / min across all chats
 const MAX_AUTOMATED_MENTIONS = 5; // Prevent ghost-tag spam bans
+const MAX_BATCH_DM_RECIPIENTS = 5; // Hard cap on batch DMs to prevent mass spam bans
 
 /**
  * Sleep helper
@@ -89,62 +74,59 @@ function pruneTimestamps(arr, now) {
 }
 
 /**
+ * Resolve phone number, raw string, or mention to a clean WhatsApp JID
+ */
+export function resolveTargetJid(recipient, callerJid = null) {
+  if (!recipient || typeof recipient !== "string") return null;
+  const raw = recipient.trim().toLowerCase();
+
+  if (raw === "caller" || raw === "me" || raw === "sender") {
+    return callerJid || null;
+  }
+
+  // Already a full JID
+  if (raw.endsWith("@s.whatsapp.net") || raw.endsWith("@g.us")) {
+    return raw;
+  }
+
+  const cleaned = normalizeNumber(raw);
+  if (!cleaned || cleaned.length < 5) return null;
+  return `${cleaned}@s.whatsapp.net`;
+}
+
+/**
  * Dispatch a group message with strict WhatsApp anti-ban, anti-spam,
- * DM restriction, and profanity guardrails.
- *
- * @param {object} params
- * @param {any} params.conn - Baileys socket connection
- * @param {string} params.targetJid - Destination chat JID
- * @param {string} params.expectedGroupJid - The active group chat JID
- * @param {boolean} params.isGroup - Whether the current context is a group
- * @param {string} params.text - Message text
- * @param {Array<string>} [params.mentions] - Mention JIDs
- * @returns {Promise<{ success: boolean, error?: string }>}
+ * and profanity guardrails.
  */
 export async function safeDispatchGroupMessage({
   conn,
   targetJid,
-  expectedGroupJid,
-  isGroup,
   text,
   mentions = [],
 }) {
   const now = Date.now();
 
-  // 1. Enforce DM Restriction
-  if (isGroup) {
-    if (!targetJid || targetJid !== expectedGroupJid || targetJid.endsWith("@s.whatsapp.net")) {
-      return {
-        success: false,
-        error:
-          "POLICY RESTRICTION: I cannot send direct messages (DMs) to individual users. My messaging capabilities are restricted to the current group chat (send_group_message).",
-      };
-    }
-  }
-
-  // 2. Enforce Profanity & Abuse Guardrail
+  // 1. Enforce Profanity & Abuse Guardrail
   const profanityCheck = containsProfanityOrAbuse(text);
   if (profanityCheck.hasProfanity) {
     return {
       success: false,
-      error: `CONTENT REFUSAL: I cannot send messages containing profanity or abusive language ("${profanityCheck.matchedWord}"). If you would like me to schedule a polite message or reminder inside this group chat after 2 minutes, let me know!`,
+      error: `CONTENT REFUSAL: Message contains profanity or abusive language ("${profanityCheck.matchedWord}"). Please keep messages respectful.`,
     };
   }
 
-  // 3. Anti-Spam Rate Limit Checks (WhatsApp Ban Prevention)
   const chatJid = targetJid;
 
-  // Prune global window
+  // 2. Anti-Spam Rate Limit Checks (WhatsApp Ban Prevention)
   pruneTimestamps(globalMinuteWindow, now);
   if (globalMinuteWindow.length >= MAX_MESSAGES_PER_MINUTE_GLOBAL) {
     return {
       success: false,
       error:
-        "ANTI-SPAM THROTTLE: Global message velocity threshold reached. Pausing automated dispatch to protect number from WhatsApp spam bans.",
+        "ANTI-SPAM THROTTLE: Global message velocity threshold reached. Pausing automated dispatch to protect number from WhatsApp bans.",
     };
   }
 
-  // Prune chat window
   if (!chatMinuteWindows.has(chatJid)) {
     chatMinuteWindows.set(chatJid, []);
   }
@@ -158,31 +140,30 @@ export async function safeDispatchGroupMessage({
     };
   }
 
-  // 4. Inter-message interval pacing (minimum 2.5s cooldown)
+  // 3. Inter-message interval pacing
   const lastSent = chatLastSent.get(chatJid) || 0;
   const elapsed = now - lastSent;
-  if (elapsed < MIN_INTER_MESSAGE_INTERVAL_MS) {
-    const waitTime = MIN_INTER_MESSAGE_INTERVAL_MS - elapsed;
-    await sleep(waitTime);
+  if (elapsed < MIN_GROUP_INTERVAL_MS) {
+    await sleep(MIN_GROUP_INTERVAL_MS - elapsed);
   }
 
-  // 5. Cap mentions to prevent mass-tag abuse
+  // 4. Cap mentions to prevent mass-tag abuse
   let safeMentions = Array.isArray(mentions) ? [...mentions] : [];
   if (safeMentions.length > MAX_AUTOMATED_MENTIONS) {
     safeMentions = safeMentions.slice(0, MAX_AUTOMATED_MENTIONS);
   }
 
-  // 6. Simulate natural human typing before dispatch
+  // 5. Simulate natural human typing before dispatch
   try {
     if (conn?.sendPresenceUpdate) {
       await conn.sendPresenceUpdate("composing", chatJid);
-      await sleep(1200); // 1.2s typing pause
+      await sleep(1200);
     }
   } catch {
     /* ignore presence error */
   }
 
-  // 7. Dispatch message safely
+  // 6. Dispatch message safely
   try {
     await conn.sendMessage(chatJid, {
       text,
@@ -194,10 +175,172 @@ export async function safeDispatchGroupMessage({
     chatWindow.push(sendTime);
     globalMinuteWindow.push(sendTime);
 
-    return { success: true };
+    return { success: true, deliveredTo: chatJid };
   } catch (err) {
     return { success: false, error: err?.message || String(err) };
   }
+}
+
+/**
+ * Dispatch a Direct Message (DM) to an individual WhatsApp user
+ * with anti-ban human typing simulation and aggressive rate-limiting.
+ *
+ * @param {object} params
+ * @param {any} params.conn - Baileys socket connection
+ * @param {string} params.recipient - Phone number, JID, or 'caller'
+ * @param {string} params.text - Private message text
+ * @param {string} [params.callerJid] - Context caller JID
+ * @returns {Promise<{ success: boolean, deliveredTo?: string, error?: string }>}
+ */
+export async function safeDispatchDirectMessage({
+  conn,
+  recipient,
+  text,
+  callerJid = null,
+}) {
+  const targetJid = resolveTargetJid(recipient, callerJid);
+  if (!targetJid || !targetJid.endsWith("@s.whatsapp.net")) {
+    return {
+      success: false,
+      error: `INVALID RECIPIENT: Could not resolve "${recipient}" to a valid WhatsApp user JID. Provide a valid phone number with country code.`,
+    };
+  }
+
+  // 1. Enforce Profanity & Abuse Guardrail
+  const profanityCheck = containsProfanityOrAbuse(text);
+  if (profanityCheck.hasProfanity) {
+    return {
+      success: false,
+      error: `CONTENT REFUSAL: Cannot send direct message containing abusive language ("${profanityCheck.matchedWord}"). Only polite DMs are permitted.`,
+    };
+  }
+
+  const now = Date.now();
+
+  // 2. Global DM velocity limit (prevents WhatsApp account bans from rapid PM broadcasts)
+  pruneTimestamps(globalMinuteWindow, now);
+  if (globalMinuteWindow.length >= MAX_DMS_PER_MINUTE_GLOBAL) {
+    return {
+      success: false,
+      error:
+        "ANTI-BAN PROTECTION: Global DM rate limit reached (max 10 DMs/min). Throttling to prevent WhatsApp from flagging this account as a spam bot.",
+    };
+  }
+
+  // 3. Recipient-specific rate limiting (prevents harassment, max 3 DMs / min / user)
+  if (!chatMinuteWindows.has(targetJid)) {
+    chatMinuteWindows.set(targetJid, []);
+  }
+  const userWindow = chatMinuteWindows.get(targetJid);
+  pruneTimestamps(userWindow, now);
+
+  if (userWindow.length >= 3) {
+    return {
+      success: false,
+      error: `ANTI-SPAM: Too many messages sent to ${targetJid} recently. Please wait 1 minute before sending another DM to this user.`,
+    };
+  }
+
+  // 4. Pacing interval between DMs (minimum 3.5s cooldown)
+  const lastSent = chatLastSent.get(targetJid) || 0;
+  const elapsed = now - lastSent;
+  if (elapsed < MIN_DM_INTERVAL_MS) {
+    await sleep(MIN_DM_INTERVAL_MS - elapsed);
+  }
+
+  // 5. Simulate natural human typing in the recipient's DM
+  try {
+    if (conn?.sendPresenceUpdate) {
+      await conn.sendPresenceUpdate("composing", targetJid);
+      await sleep(1500 + Math.floor(Math.random() * 1000)); // 1.5s - 2.5s randomized typing pause
+    }
+  } catch {
+    /* ignore presence error */
+  }
+
+  // 6. Deliver the Direct Message
+  try {
+    await conn.sendMessage(targetJid, { text });
+
+    const sendTime = Date.now();
+    chatLastSent.set(targetJid, sendTime);
+    userWindow.push(sendTime);
+    globalMinuteWindow.push(sendTime);
+
+    return {
+      success: true,
+      deliveredTo: targetJid,
+      note: "Delivered via paced anti-ban dispatcher.",
+    };
+  } catch (err) {
+    return { success: false, error: err?.message || String(err) };
+  }
+}
+
+/**
+ * Dispatch Batch Direct Messages sequentially with randomized jitter
+ * to safely message a small group of users without tripping WhatsApp ban filters.
+ *
+ * @param {object} params
+ * @param {any} params.conn - Baileys socket connection
+ * @param {Array<string>} params.recipients - List of user numbers or JIDs (max 5)
+ * @param {string} params.text - Message content
+ * @param {string} [params.callerJid] - Context caller JID
+ * @returns {Promise<{ success: boolean, deliveredCount: number, failedCount: number, results: Array<object> }>}
+ */
+export async function safeDispatchBatchDms({
+  conn,
+  recipients,
+  text,
+  callerJid = null,
+}) {
+  if (!Array.isArray(recipients) || !recipients.length) {
+    return { success: false, error: "No recipients provided for batch DM." };
+  }
+
+  // Hard cap to prevent WhatsApp mass-broadcast bans
+  if (recipients.length > MAX_BATCH_DM_RECIPIENTS) {
+    return {
+      success: false,
+      error: `MASS DM SAFETY: Batch DMs are strictly capped at ${MAX_BATCH_DM_RECIPIENTS} recipients per batch to protect the phone number from being banned by WhatsApp. Received: ${recipients.length}.`,
+    };
+  }
+
+  const results = [];
+  let deliveredCount = 0;
+  let failedCount = 0;
+
+  for (let i = 0; i < recipients.length; i++) {
+    const target = recipients[i];
+
+    // Randomized human-like pause between each recipient (4s - 7s)
+    if (i > 0) {
+      const jitter = 4000 + Math.floor(Math.random() * 3000);
+      await sleep(jitter);
+    }
+
+    const res = await safeDispatchDirectMessage({
+      conn,
+      recipient: target,
+      text,
+      callerJid,
+    });
+
+    results.push({ recipient: target, ...res });
+    if (res.success) {
+      deliveredCount++;
+    } else {
+      failedCount++;
+    }
+  }
+
+  return {
+    success: deliveredCount > 0,
+    deliveredCount,
+    failedCount,
+    totalAttempted: recipients.length,
+    results,
+  };
 }
 
 /**

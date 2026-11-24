@@ -174,7 +174,7 @@ export async function createScheduledTask({
   creatorJid = "system",
   description = "",
 }) {
-  const { validateScheduleSafe, containsProfanityOrAbuse, isDmRequest } = await import(
+  const { validateScheduleSafe, containsProfanityOrAbuse } = await import(
     "./agentSafetyThrottle.js"
   );
 
@@ -189,13 +189,6 @@ export async function createScheduledTask({
   if (profanityCheck.hasProfanity) {
     throw new Error(
       `Cannot schedule task with abusive language ("${profanityCheck.matchedWord}"). Only polite tasks are permitted.`
-    );
-  }
-
-  // DM Prohibition Check
-  if (isDmRequest(taskPrompt)) {
-    throw new Error(
-      "Cannot schedule tasks targeting direct messages (DMs) to individual users. Automated tasks must stay within the group chat."
     );
   }
 

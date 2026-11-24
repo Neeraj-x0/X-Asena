@@ -25,15 +25,21 @@ command(
       return await reply(
         conn,
         message,
-        `🤖 *AGENTIC AI LAYER*\n\n` +
-          `Prompt the autonomous agent to inspect, manage, or perform complex tasks in this chat.\n\n` +
-          `*Examples:*\n` +
-          `• \`${BOT_INFO.PREFIX}agent can you kick everyone whose number starts with 63 and their sum of digits adds up to 67?\`\n` +
-          `• \`${BOT_INFO.PREFIX}agent mute the group and announce that quiet hours have started\`\n` +
-          `• \`${BOT_INFO.PREFIX}agent how many admins are in this group and who created it?\`\n` +
-          `• \`${BOT_INFO.PREFIX}agent find all members from USA (+1) in this group\`\n\n` +
-          `_You can also trigger it without prefix simply by tagging the bot:_\n` +
-          `\`@bot can you kick everyone whose number starts with 63 and their sum of digits adds up to 67\``
+        `🤖 *AUTONOMOUS AGENT LAYER*\n\n` +
+          `Prompt the autonomous agent to inspect, manage, browse, calculate, or schedule tasks in this chat.\n\n` +
+          `*Capabilities & Examples:*\n` +
+          `• *Smart Moderation:* \`@bot can you kick everyone whose number starts with 63 and their digits sum to 67?\`\n` +
+          `• *Autonomous Cron:* \`@bot every day at 8 AM search AI news and post a summary\`\n` +
+          `• *Live Web Search:* \`@bot search who won today's football match and summarize\`\n` +
+          `• *Code Execution:* \`@bot calculate the first 30 prime numbers\`\n` +
+          `• *Generative Visuals:* \`@bot generate an image of a cyberpunk city at night\`\n` +
+          `• *Multi-Modal Vision:* Reply to any photo with \`@bot what is written here?\`\n` +
+          `• *Long-Term Memory:* \`@bot remember that quiet hours start at 10 PM\`\n\n` +
+          `_Commands:_\n` +
+          `• \`${BOT_INFO.PREFIX}agent <prompt>\` / \`${BOT_INFO.PREFIX}ask <prompt>\`\n` +
+          `• \`${BOT_INFO.PREFIX}agentconfig\` — Set API key, URL, and model\n` +
+          `• \`${BOT_INFO.PREFIX}agentmemory\` — View or reset long-term memories\n` +
+          `• \`${BOT_INFO.PREFIX}agenttasks\` — Inspect or cancel scheduled autonomous jobs`
       );
     }
 

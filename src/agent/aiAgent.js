@@ -380,6 +380,81 @@ export const AGENT_TOOLS = [
       },
     },
   },
+
+  // ==================== LIVE WEB & CODE EXECUTION TOOLS ====================
+  {
+    type: "function",
+    function: {
+      name: "web_search",
+      description: "Search the live internet using DuckDuckGo to obtain real-time information, breaking news, sports scores, documentation, or facts.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The search query" },
+          limit: { type: "number", description: "Maximum number of search results to return (default: 5)" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "fetch_webpage",
+      description: "Fetch and read the clean plain text content from any website or documentation URL.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "The full http or https URL to read" },
+        },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "run_code",
+      description: "Execute safe JavaScript code in a sandbox to perform complex calculations, regex transformations, or data parsing.",
+      parameters: {
+        type: "object",
+        properties: {
+          code: { type: "string", description: "JavaScript code to execute (use 'return' or 'console.log' to yield results)" },
+        },
+        required: ["code"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_image",
+      description: "Generate a new AI image from a text prompt and deliver it directly to the chat.",
+      parameters: {
+        type: "object",
+        properties: {
+          prompt: { type: "string", description: "Detailed visual description of the image to generate" },
+          caption: { type: "string", description: "Optional caption text" },
+        },
+        required: ["prompt"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_sticker",
+      description: "Convert a quoted image into a WhatsApp sticker and deliver it to the chat.",
+      parameters: {
+        type: "object",
+        properties: {
+          pack: { type: "string", description: "Sticker pack name" },
+          author: { type: "string", description: "Sticker author" },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 /**
@@ -706,6 +781,55 @@ export async function executeAgentTool(name, args, context) {
     return { success: ok, cancelledId: args.taskId };
   }
 
+  // ==================== WEB & CODE TOOL EXECUTIONS ====================
+  if (name === "web_search") {
+    const { searchWeb } = await import("./agentWeb.js");
+    const res = await searchWeb(args.query, args.limit || 5);
+    return res;
+  }
+
+  if (name === "fetch_webpage") {
+    const { fetchWebpage } = await import("./agentWeb.js");
+    const res = await fetchWebpage(args.url);
+    return res;
+  }
+
+  if (name === "run_code") {
+    const { executeSandboxCode } = await import("./agentCode.js");
+    const res = await executeSandboxCode(args.code);
+    return res;
+  }
+
+  if (name === "generate_image") {
+    try {
+      const { generateAIImage } = await import("./agentWeb.js");
+      const res = await generateAIImage(args.prompt);
+      await conn.sendMessage(groupJid || message.from, {
+        image: res.buffer,
+        caption: args.caption || `🎨 *AI Agent Visual:*\n> "${args.prompt}"`,
+      });
+      return { success: true, message: "Image generated and sent to the chat!" };
+    } catch (err) {
+      return { error: `Image generation failed: ${err?.message || err}` };
+    }
+  }
+
+  if (name === "create_sticker") {
+    try {
+      const { downloadQuotedOrSelf } = await import("../utils/media.js");
+      const media = await downloadQuotedOrSelf(conn, message, { preferQuoted: true });
+      if (!media || !media.buffer) {
+        return { error: "No image found in quoted message to turn into a sticker." };
+      }
+      const { makeStickerBuffer, sendSticker } = await import("../plugins/sticker.js");
+      const webp = await makeStickerBuffer(media);
+      await sendSticker(conn, message, webp, args.pack || BOT_INFO.NAME, args.author || "AI Agent");
+      return { success: true, message: "Sticker created and delivered to chat!" };
+    } catch (err) {
+      return { error: `Sticker creation failed: ${err?.message || err}` };
+    }
+  }
+
   return { error: `Unknown tool: ${name}` };
 }
 
@@ -795,12 +919,35 @@ export async function runAgentPrompt({ prompt, message, conn }) {
     `1. Deterministic Math & Member Filtering: Use 'filter_group_members' for phone number filters, country code startsWith, and digit sums.\n` +
     `2. Memory Layer: Store facts, rules, user preferences, and reminders using 'remember', 'recall', 'forget', and 'list_memories'.\n` +
     `3. Cron & Autonomous Execution: Schedule recurring cron jobs or delayed tasks using 'schedule_task' (supports standard 5-part cron syntax like '0 9 * * *', '*/30 * * * *', times like '23:00', or 'in 15m'). You will autonomously self-initiate and execute instructions when triggered!\n` +
-    `4. Strict Security: Destructive actions (kick, promote, demote, mute, schedule) require caller to be an Admin or Owner.\n` +
-    `5. Always confirm the actions executed clearly, concisely, and with emojis.`;
+    `4. Live Web Search & Browsing: Use 'web_search' to get real-time facts, news, sports scores, and search results; use 'fetch_webpage' to read and summarize any URL.\n` +
+    `5. Safe Code Execution: Use 'run_code' to run JavaScript code in a sandbox for calculations, data analysis, regex, and algorithms.\n` +
+    `6. Generative Visuals: Use 'generate_image' to generate new AI images and 'create_sticker' to create stickers.\n` +
+    `7. Vision: When an image is attached or quoted, you can inspect it and analyze its content, text, and details!\n` +
+    `8. Strict Security: Destructive actions (kick, promote, demote, mute, schedule) require caller to be an Admin or Owner.\n` +
+    `9. Always confirm the actions executed clearly, concisely, and with emojis.`;
+
+  // Multi-Modal Vision: Check if an image is attached or quoted
+  let imageBase64 = null;
+  try {
+    const { downloadQuotedOrSelf } = await import("../utils/media.js");
+    const media = await downloadQuotedOrSelf(conn, message, { preferQuoted: true });
+    if (media && media.type === "image" && media.buffer) {
+      imageBase64 = `data:${media.mimetype || "image/jpeg"};base64,${media.buffer.toString("base64")}`;
+    }
+  } catch {
+    /* no image attached */
+  }
+
+  const userContent = imageBase64
+    ? [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: imageBase64 } },
+      ]
+    : prompt;
 
   const messages = [
     { role: "system", content: systemPrompt },
-    { role: "user", content: prompt },
+    { role: "user", content: userContent },
   ];
 
   const endpoint = `${config.baseUrl.replace(/\/+$/, "")}/chat/completions`;

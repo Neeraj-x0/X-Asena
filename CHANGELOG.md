@@ -9,7 +9,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- Automated tests for ACL, flags, and plugin registration
+- Automated end-to-end integration tests for AI agent tool calling and rate limiters
+
+## [4.1.0] - 2026-11-25
+
+Major feature release introducing an autonomous multi-modal agentic AI layer, WhatsApp Business suite, advanced group automation, prompt injection guardrails, WhatsApp anti-ban rate limiting, and Baileys 7.x LID vs JID differentiation.
+
+### Added
+
+- **Autonomous Agentic AI Layer (`src/agent/`)**:
+  - Natural language triggers (`@bot <prompt>` and `#agent` / `#ask`).
+  - OpenAI-compatible API backend with automatic model discovery (`#agentconfig`).
+  - Persistent conversational memory layer (`#agentmemory`) storing facts, rules, and notes across bot restarts.
+  - Autonomous cron and self-initiating background task scheduler (`#agenttasks`) with natural language time parsing (`every day at 8 AM`, `in 2 minutes`).
+  - Subagent swarm delegation (`delegate_subtask`) with specialized roles (researcher, coder, moderator, analyst, summarizer).
+  - Autonomous multi-step plan checklist creator (`create_plan`, `update_plan_progress`).
+  - Persistent Knowledge Base RAG (`#agentkb`) for indexing and semantically querying verified FAQs and rules.
+  - Multi-modal vision analysis on attached/quoted photos and generative visual creation (`generate_image`, `create_sticker`).
+  - Isolated VM safe code execution sandbox (`run_code`) for calculations, algorithms, and data processing.
+  - Live web search and URL webpage scraping tools (`web_search`, `fetch_webpage`).
+  - Deterministic member filtering (`filter_group_members`) with phone number prefixes, digit sums, admin status, and custom conditions.
+  - Dynamic agent personas (`#agentpersona`): default, executive, strict-mod, witty, tutor.
+  - Human-in-the-loop safety confirmation guardrails (`#confirm` / `#cancelaction`) for mass actions.
+
+- **Prompt Injection Guardrails & Output Leak Scrubber (`src/agent/agentInjectionGuard.js`)**:
+  - Multi-layer defense against direct jailbreaks ("ignore previous instructions", "DAN", "developer mode").
+  - System prompt leak and credential extraction prevention.
+  - Explicit boundary sandboxing wrapping all untrusted user inputs and external web contents (`<untrusted_*>`).
+  - Output leak prevention automatically sanitizing API keys and internal directives before delivery.
+  - Dedicated inspection command `#agentguard` with configurable sensitivity modes (`strict` / `standard`), audit logs, and test scanner.
+
+- **Direct Messaging (DMs) & Anti-Ban Rate Limiting (`src/agent/agentSafetyThrottle.js`)**:
+  - Paced direct messaging (`send_direct_message`) with simulated typing presence (`composing`).
+  - Batch direct messaging (`send_batch_dms`) with randomized jitter (4–7s delay) and a safety cap of 5 recipients to prevent number bans.
+  - Zero-tolerance profanity and abuse filter blocking vulgar slurs and regional profanities (specifically "myr").
+  - Inter-message cooldown and global dispatch rate limits.
+
+- **WhatsApp 7.x LID vs Phone Number JID Differentiation**:
+  - Fixed invalid `@s.whatsapp.net` corruption on 64-bit WhatsApp Local Identifiers (`@lid`).
+  - Upgraded message serializer (`src/messages/serialize.js`) to provide distinct `senderPn`, `senderLid`, `phoneNumber`, and `isLid` properties on both primary and quoted messages.
+  - Automatic resolution mapping between LIDs and real phone numbers via group metadata and Baileys signal repository (`src/utils/lid.js`).
+
+- **WhatsApp Business Account Suite (`src/plugins/business.js`)**:
+  - Account safety guard strictly checking `conn.user.isBusiness` with fallback warnings to prevent non-business account bans.
+  - Business profile viewer/editor (`#bprofile`), business hours (`#bhours`), quick replies (`#quickreply`), catalog viewer (`#catalog`), away messages (`#awaymsg`), and greeting messages (`#greetmsg`).
+
+- **Group Automation Suite**:
+  - Prohibited word and phrase filter (`#filter add|del|list`) with auto-delete.
+  - Anti-foreign country code blocker (`#antiforeign on|off|allow 91,63|action kick|warn`) auto-scanning new joins.
+  - Scheduled group auto-mute and auto-unmute (`#automute` / `#autounmute`).
+
+- **Command Architecture Harmonization**:
+  - Reorganized all 148 bot commands into 13 dedicated categories (`core`, `group`, `moderation`, `automation`, `tools`, `business`, `media`, `stickers`, `download`, `productivity`, `enterprise`, `settings`, `misc`).
+  - Upgraded interactive `#menu` displaying real-time RAM, uptime, and categorized commands.
+
+### Fixed
+
+- Fixed LID digits being miscalculated as phone numbers in member filters and DM dispatches.
+- Fixed unhandled database exceptions during offline/decoupled testing.
+- Fixed command registry pattern lookups for alias mappings.
 
 ## [4.0.0] - 2026-07-24
 
@@ -39,5 +97,6 @@ Major Baileys **7.0.0-rc13** rewrite on `main` (previous line preserved as `pre-
 - User-facing errors stay generic; stacks go to the system log group only
 - Spoof mitigations on `messages.upsert` (notify-only, ignore `requestId`)
 
-[Unreleased]: https://github.com/Neeraj-x0/X-Asena/compare/v4.0.0...HEAD
+[Unreleased]: https://github.com/Neeraj-x0/X-Asena/compare/v4.1.0...HEAD
+[4.1.0]: https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.1.0
 [4.0.0]: https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.0.0

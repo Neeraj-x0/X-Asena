@@ -7,14 +7,15 @@
 
 import { kvGet, kvSet } from "../database/botKv.js";
 import { normalizeNumber } from "../utils/access.js";
+import { createTtlCache } from "../utils/cache.js";
 
 const MEMORY_KV_KEY = "agent_persistent_memories";
 const MAX_CHAT_BUFFER = 20;
 
 /**
- * In-memory rolling buffer for recent messages per chat (JID -> Message[])
+ * In-memory bounded rolling buffer for recent messages per chat (JID -> Message[])
  */
-const chatBuffers = new Map();
+const chatBuffers = createTtlCache({ ttlMs: 6 * 60 * 60 * 1000, max: 150 });
 
 /**
  * Add a message to the rolling chat buffer
@@ -22,11 +23,7 @@ const chatBuffers = new Map();
 export function addMessageToHistory(chatJid, { sender, senderName, text, isBot = false }) {
   if (!chatJid || !text) return;
 
-  if (!chatBuffers.has(chatJid)) {
-    chatBuffers.set(chatJid, []);
-  }
-
-  const buffer = chatBuffers.get(chatJid);
+  const buffer = chatBuffers.get(chatJid) || [];
   const cleanSender = normalizeNumber(sender) || "unknown";
   const displayName = senderName || cleanSender;
 
@@ -41,6 +38,7 @@ export function addMessageToHistory(chatJid, { sender, senderName, text, isBot =
   if (buffer.length > MAX_CHAT_BUFFER) {
     buffer.shift();
   }
+  chatBuffers.set(chatJid, buffer);
 }
 
 /**

@@ -30,12 +30,14 @@ export const SESSION_SECONDS = 60;
 /** Target maximum size for the generated animated WebP sticker */
 export const MAX_STICKER_SIZE_BYTES = 900 * 1024;
 
+import { createTtlCache } from "./cache.js";
+
 /**
- * Global session map to retain pending interactive sessions across turns.
+ * Global session store to retain pending interactive sessions across turns (15-min TTL, max 100).
  * Key: `${chatJid}:${senderJid}`
  */
 if (!globalThis.__audioStickerSessions) {
-  globalThis.__audioStickerSessions = new Map();
+  globalThis.__audioStickerSessions = createTtlCache({ ttlMs: 15 * 60 * 1000, max: 100 });
 }
 export const sessions = globalThis.__audioStickerSessions;
 

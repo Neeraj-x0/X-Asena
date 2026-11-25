@@ -4,6 +4,7 @@
 
 import { kvGet, kvSet } from "../database/botKv.js";
 import { getGroupSettings } from "../utils/groupSettings.js";
+import { createTtlCache } from "../utils/cache.js";
 
 const KEY = "policies";
 
@@ -56,8 +57,8 @@ function inQuietHours(policy) {
   return cur >= a || cur < b;
 }
 
-/** Simple per-user command rate limit */
-const buckets = new Map();
+/** Simple bounded per-user command rate limit */
+const buckets = createTtlCache({ ttlMs: 2 * 60_000, max: 500 });
 
 function rateLimited(userKey, limit) {
   if (!limit || limit <= 0) return false;

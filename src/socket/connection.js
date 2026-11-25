@@ -98,6 +98,7 @@ let latestQr = null;
 let latestPairingCode = null;
 let lastDisconnectReason = null;
 let startupPruned = false;
+let maintenanceInterval = null;
 const signalKeyCache = createTtlCache({ ttlMs: 3 * 60 * 1000, max: 300 });
 const recentMessages = [];
 const MAX_RECENT_MESSAGES = 100;
@@ -260,12 +261,23 @@ async function connect() {
           .then(({ startAutonomousAgentScheduler }) => startAutonomousAgentScheduler?.(conn))
           .catch(() => {});
 
-        // Non-blocking closed ratchet cleanup once after boot to keep SQLite & heap lean
+        // Non-blocking closed ratchet cleanup after boot + every 24h for 365-day uptime
         if (!startupPruned) {
           startupPruned = true;
-          setTimeout(() => {
+          const bootTimer = setTimeout(() => {
             pruneStaleSessions({ maxClosedPerJid: 3 }).catch(() => {});
           }, 15_000);
+          bootTimer.unref?.();
+
+          maintenanceInterval = setInterval(async () => {
+            try {
+              await pruneStaleSessions({ maxClosedPerJid: 3 });
+              await flushAuthState();
+            } catch {
+              /* ignore maintenance errors */
+            }
+          }, 24 * 60 * 60 * 1000);
+          maintenanceInterval.unref?.();
         }
 
         // System log group + onboarding (never DM the bot itself)
@@ -305,6 +317,9 @@ async function connect() {
         lastDisconnectReason = statusCode ?? "closed";
 
         stopReminderScheduler();
+        import("../plugins/automute.js")
+          .then(({ stopAutoMuteScheduler }) => stopAutoMuteScheduler?.())
+          .catch(() => {});
         await flushAuthState();
         cleanupSocket(conn);
         if (globalConnection === conn) {

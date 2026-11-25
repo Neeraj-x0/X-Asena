@@ -4,9 +4,10 @@
 
 import { normalizeNumber } from "./access.js";
 import { getGroupSettings } from "./groupSettings.js";
+import { createTtlCache } from "./cache.js";
 
-/** senderKey → timestamps[] */
-const spamBuckets = new Map();
+/** senderKey → timestamps[] (bounded TTL cache prevents long-uptime Map growth) */
+const spamBuckets = createTtlCache({ ttlMs: 60_000, max: 500 });
 
 const URL_RE =
   /(?:https?:\/\/|www\.|wa\.me\/|chat\.whatsapp\.com\/|t\.me\/)[^\s]+/gi;

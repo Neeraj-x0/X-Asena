@@ -9,6 +9,7 @@
 
 import { BOT_INFO } from "../config/constants.js";
 import { normalizeNumber } from "../utils/access.js";
+import { createTtlCache } from "../utils/cache.js";
 
 // ==================== PROFANITY & ABUSE PATTERNS ====================
 
@@ -45,9 +46,9 @@ export function containsProfanityOrAbuse(text) {
 
 // ==================== ANTI-SPAM & ANTI-BAN RATE LIMITER ====================
 
-// Cooldown tracking per chat / recipient JID
-const chatLastSent = new Map(); // chatJid -> timestamp
-const chatMinuteWindows = new Map(); // chatJid -> [timestamps]
+// Bounded cooldown tracking per chat / recipient JID (prevents unbounded Map growth)
+const chatLastSent = createTtlCache({ ttlMs: 5 * 60_000, max: 500 }); // chatJid -> timestamp
+const chatMinuteWindows = createTtlCache({ ttlMs: 5 * 60_000, max: 500 }); // chatJid -> [timestamps]
 const globalMinuteWindow = []; // [timestamps]
 
 const MIN_GROUP_INTERVAL_MS = 2500; // 2.5s minimum between group messages

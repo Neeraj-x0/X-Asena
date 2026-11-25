@@ -73,4 +73,15 @@ const initialize = async () => {
   }
 };
 
+// Global resilience guards so stray async promise rejections never crash long-running processes
+if (!globalThis.__xasenaErrorGuards) {
+  globalThis.__xasenaErrorGuards = true;
+  process.on("unhandledRejection", (reason) => {
+    console.error("[runtime] Unhandled Promise Rejection:", reason?.stack || reason?.message || reason);
+  });
+  process.on("uncaughtExceptionMonitor", (err, origin) => {
+    console.error(`[runtime] Uncaught Exception (${origin}):`, err?.stack || err?.message || err);
+  });
+}
+
 initialize();

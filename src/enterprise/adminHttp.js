@@ -388,6 +388,10 @@ export function startAdminHttp() {
         }
 
         await setGroupSettings(groupJid, { [key]: value });
+        if (key === "automute" || key === "autounmute") {
+          const { syncAutoMuteIndex } = await import("../plugins/automute.js");
+          await syncAutoMuteIndex(groupJid, { [key]: value });
+        }
         await writeAudit({ action: "dashboard.group_setting", actor: "dashboard", target: groupJid, meta: { key, value } });
         return json(res, 200, { success: true, message: `Updated ${key} = ${value}` });
       }

@@ -53,3 +53,42 @@ export function sanitizeKey(key) {
 export function makeStorageKey(type, id) {
   return sanitizeKey(`${type}-${id}.json`);
 }
+
+/**
+ * Trim excess closed Signal sub-sessions inside a serialized SessionEntry record
+ * while keeping open (-1) ratchets untouched.
+ */
+export function trimClosedRatchets(rawJsonValue, maxClosedPerJid = 5) {
+  if (!rawJsonValue) return { changed: false, prunedCount: 0 };
+  try {
+    const parsed = JSON.parse(rawJsonValue, BufferJSON.reviver);
+    const map = parsed?._sessions;
+    if (!map || typeof map !== "object") return { changed: false, prunedCount: 0 };
+
+    const closedKeys = [];
+    for (const [baseKey, entry] of Object.entries(map)) {
+      const closedAt = entry?.indexInfo?.closed;
+      if (typeof closedAt === "number" && closedAt > 0) {
+        closedKeys.push({ baseKey, closedAt });
+      }
+    }
+
+    if (closedKeys.length <= maxClosedPerJid) {
+      return { changed: false, prunedCount: 0 };
+    }
+
+    closedKeys.sort((a, b) => b.closedAt - a.closedAt);
+    const toDrop = closedKeys.slice(maxClosedPerJid);
+    for (const item of toDrop) {
+      delete map[item.baseKey];
+    }
+
+    return {
+      changed: true,
+      prunedCount: toDrop.length,
+      nextValue: JSON.stringify(parsed, BufferJSON.replacer),
+    };
+  } catch {
+    return { changed: false, prunedCount: 0 };
+  }
+}

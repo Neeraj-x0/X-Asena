@@ -25,6 +25,16 @@ export function createTtlCache({ ttlMs = 5 * 60 * 1000, max = 50 } = {}) {
   }
 
   return {
+    has(key) {
+      const entry = store.get(key);
+      if (!entry) return false;
+      if (entry.expiresAt <= Date.now()) {
+        store.delete(key);
+        return false;
+      }
+      return true;
+    },
+
     get(key) {
       const entry = store.get(key);
       if (!entry) return undefined;

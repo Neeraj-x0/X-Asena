@@ -5,7 +5,7 @@
 
 import Database from "better-sqlite3";
 import { initAuthCreds, proto } from "baileys";
-import { BufferJSON, sanitizeKey, makeStorageKey } from "./bufferJson.js";
+import { BufferJSON, sanitizeKey, makeStorageKey, trimClosedRatchets } from "./bufferJson.js";
 import { createTtlCache } from "../utils/cache.js";
 
 /**
@@ -358,35 +358,10 @@ export async function useBetterSqliteAuthState(dbPath) {
 
         const updates = [];
         for (const row of rows) {
-          if (!row?.value) continue;
-          try {
-            const parsed = JSON.parse(row.value, BufferJSON.reviver);
-            const map = parsed?._sessions;
-            if (!map || typeof map !== "object") continue;
-
-            const closedKeys = [];
-            for (const [baseKey, entry] of Object.entries(map)) {
-              const closedAt = entry?.indexInfo?.closed;
-              if (typeof closedAt === "number" && closedAt > 0) {
-                closedKeys.push({ baseKey, closedAt });
-              }
-            }
-
-            if (closedKeys.length > maxClosedPerJid) {
-              // Keep newest closed entries up to maxClosedPerJid, drop oldest
-              closedKeys.sort((a, b) => b.closedAt - a.closedAt);
-              const toDrop = closedKeys.slice(maxClosedPerJid);
-              for (const item of toDrop) {
-                delete map[item.baseKey];
-                prunedEntries++;
-              }
-              updates.push({
-                key: row.key,
-                value: JSON.stringify(parsed, BufferJSON.replacer),
-              });
-            }
-          } catch {
-            /* skip malformed entry */
+          const res = trimClosedRatchets(row?.value, maxClosedPerJid);
+          if (res.changed) {
+            prunedEntries += res.prunedCount;
+            updates.push({ key: row.key, value: res.nextValue });
           }
         }
 

@@ -6,7 +6,7 @@
 import { Mutex } from "async-mutex";
 import { DataTypes, Op } from "sequelize";
 import { initAuthCreds, proto } from "baileys";
-import { BufferJSON, sanitizeKey } from "./bufferJson.js";
+import { BufferJSON, sanitizeKey, trimClosedRatchets } from "./bufferJson.js";
 
 const RETRY_CONFIG = {
   maxRetries: 5,
@@ -267,6 +267,30 @@ export async function usePostgresAuthState(sequelize) {
     AuthStateDB,
 
     flush: async () => writeMutex.runExclusive(async () => {}),
+
+    pruneStaleSessions: async ({ maxClosedPerJid = 5 } = {}) => {
+      return writeMutex.runExclusive(async () => {
+        let prunedEntries = 0;
+        try {
+          const { Op } = await import("sequelize");
+          const rows = await AuthStateDB.findAll({
+            where: { key: { [Op.like]: "session-%" } },
+            attributes: ["key", "value"],
+            raw: true,
+          });
+          for (const row of rows) {
+            const res = trimClosedRatchets(row?.value, maxClosedPerJid);
+            if (res.changed) {
+              prunedEntries += res.prunedCount;
+              await AuthStateDB.upsert({ key: row.key, value: res.nextValue });
+            }
+          }
+        } catch (err) {
+          console.error("[auth-pg] pruneStaleSessions error:", err?.message || err);
+        }
+        return prunedEntries;
+      });
+    },
 
     getStats: async () => {
       try {

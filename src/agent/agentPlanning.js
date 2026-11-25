@@ -6,7 +6,9 @@
  * @module agent/agentPlanning
  */
 
-const activePlans = new Map();
+import { createTtlCache } from "../utils/cache.js";
+
+const activePlans = createTtlCache({ ttlMs: 2 * 60 * 60 * 1000, max: 50 });
 
 /**
  * Format plan checklist
@@ -89,6 +91,9 @@ export async function updatePlanStep({ planId, stepNumber, status, note = null, 
   }
 
   const allDone = plan.steps.every((s) => s.status === "completed");
+  if (allDone) {
+    activePlans.delete(planId);
+  }
 
   if (conn && chatJid) {
     try {

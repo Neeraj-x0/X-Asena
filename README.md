@@ -83,11 +83,13 @@ npm run dev
 
 ## Deploy on Koyeb
 
+[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=git&name=x-asena&repository=github.com%2FNeeraj-x0%2FX-Asena&branch=main&builder=dockerfile&dockerfile=Dockerfile&ports=8000%3Bhttp%3B%2F&env%5BOWNER_NUMBER%5D=&env%5BDATABASE_URL%5D=&env%5BADMIN_HTTP_TOKEN%5D=&env%5BPAIRING_NUMBER%5D=&env%5BBOT_MODE%5D=public)
+
 X-Asena includes a production `Dockerfile` (with `ffmpeg` pre-installed), `.dockerignore`, and automatic `PORT` / `/health` probe support:
 
 1. Create a **PostgreSQL** database on Koyeb (or external Postgres such as Neon/Supabase) so sessions survive restarts.
-2. Deploy this repository as a **Web Service** on Koyeb using the included **Dockerfile** builder (HTTP health check path: `/health`, default port `8000`).
-3. Set the required environment variables:
+2. Click **Deploy to Koyeb** above (pre-configured with `Dockerfile` builder and port `8000`) and set the health check path to `/health`.
+3. Fill in the environment variables:
    - `DATABASE_URL` — PostgreSQL connection string (`postgresql://...`)
    - `OWNER_NUMBER` — Your WhatsApp phone number (country code, no `+`)
    - `ADMIN_HTTP_TOKEN` — Strong secret to protect the Web Dashboard & Ops APIs

@@ -3,7 +3,7 @@
 [![Release](https://img.shields.io/badge/release-v4.2.0-blue.svg)](https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.2.0)
 [![Baileys](https://img.shields.io/badge/Baileys-7.0.0--rc13-green.svg)](https://github.com/WhiskeySockets/Baileys)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
 Multi-device WhatsApp bot and autonomous agent platform built on [Baileys](https://github.com/WhiskeySockets/Baileys) **7.0.0-rc13**.
 
@@ -152,6 +152,14 @@ Run `#menu` in WhatsApp for the interactive categorized list, or `#help <command
 
 ---
 
+## Disclaimer
+
+- **No Affiliation:** X-Asena is an independent open-source project and is not affiliated with, endorsed by, or connected to WhatsApp LLC or Meta Platforms, Inc.
+- **Compliance & Risk:** Automating WhatsApp accounts via unofficial clients carries inherent risk of rate limits or account bans. Use responsibly and in compliance with WhatsApp's Terms of Service and local laws.
+- **Liability:** The software is provided *"as is"* without warranty. Maintainers and contributors are not liable for account restrictions, third-party LLM/API charges, data loss, or actions triggered by users or autonomous agents.
+
+---
+
 ## Changelog & Releases
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
@@ -163,4 +171,6 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Copyright (c) 2023–2026 Neeraj and X-Asena contributors.
+
+Licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** — see [LICENSE](LICENSE). Any redistributed fork or modified instance hosted over a network (including SaaS/cloud bot hosting) must make its complete source code publicly available under AGPL-3.0. *(Releases up to `v4.2.0` remain available under the previous MIT License.)*

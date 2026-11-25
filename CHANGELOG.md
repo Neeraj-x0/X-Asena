@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Switched repository license from MIT to **GNU Affero General Public License v3.0 (AGPL-3.0)** in `LICENSE`, `package.json`, and `README.md` (covering distributed forks and network/SaaS-hosted deployments).
+- Added formal non-affiliation, Terms of Service compliance, and no-liability Disclaimer section to `README.md`.
+
 ### Planned
 
 - Automated end-to-end integration tests for AI agent tool calling and rate limiters

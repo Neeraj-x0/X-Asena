@@ -569,9 +569,14 @@ export function renderDashboardHtml() {
                 <input id="aiApiKey" type="password" placeholder="sk-... / gsk_..." />
               </div>
               <div>
-                <label>Default Model</label>
+                <label>Default Model (select discovered or type custom)</label>
+                <div class="row" style="margin-bottom: 8px;">
+                  <input id="aiModelInput" list="aiModelsDatalist" placeholder="gpt-4o-mini / llama-3.3-70b-versatile" style="flex: 1;" />
+                  <datalist id="aiModelsDatalist"></datalist>
+                  <select id="aiModelSelect" style="flex: 1;" onchange="if(this.value) document.getElementById('aiModelInput').value = this.value;"></select>
+                </div>
                 <div class="row">
-                  <select id="aiModelSelect" style="flex: 1;"></select>
+                  <button class="btn btn-sm btn-primary" onclick="saveAgentConfig(false)">Save Config</button>
                   <button class="btn btn-sm btn-blue" onclick="saveAgentConfig(true)">Save & Discover Models</button>
                 </div>
               </div>
@@ -1058,11 +1063,18 @@ export function renderDashboardHtml() {
       document.getElementById("aiMaskedKey").textContent = data.config?.maskedKey || "Not set";
 
       const modelSel = document.getElementById("aiModelSelect");
+      const modelInp = document.getElementById("aiModelInput");
+      const modelList = document.getElementById("aiModelsDatalist");
       const current = data.config?.model || "";
+      if (document.activeElement !== modelInp) {
+        modelInp.value = current;
+      }
       const models = new Set([current, ...(data.discoveredModels || [])].filter(Boolean));
-      modelSel.innerHTML = [...models].map((m) =>
+      const optHtml = [...models].map((m) =>
         '<option value="' + esc(m) + '" ' + (m === current ? 'selected' : '') + '>' + esc(m) + '</option>'
-      ).join("") || '<option value="">No models configured</option>';
+      ).join("");
+      modelSel.innerHTML = '<option value="">-- Discovered Models (' + models.size + ') --</option>' + optHtml;
+      modelList.innerHTML = [...models].map((m) => '<option value="' + esc(m) + '">').join("");
 
       const g = data.guardrails || {};
       document.getElementById("guardToggleBtn").textContent = g.enabled ? "Guardrails: ON" : "Guardrails: OFF";
@@ -1112,8 +1124,8 @@ export function renderDashboardHtml() {
     async function saveAgentConfig(discover = false) {
       const baseUrl = document.getElementById("aiBaseUrl").value.trim();
       const apiKey = document.getElementById("aiApiKey").value.trim();
-      const model = document.getElementById("aiModelSelect").value;
-      const res = await apiAction("/api/agent/config", { baseUrl, apiKey: apiKey || undefined, model, discover });
+      const model = document.getElementById("aiModelInput").value.trim() || document.getElementById("aiModelSelect").value;
+      const res = await apiAction("/api/agent/config", { baseUrl, apiKey: apiKey || undefined, model: model || undefined, discover });
       if (res) document.getElementById("aiApiKey").value = "";
     }
 

@@ -523,22 +523,33 @@ export function startAdminHttp() {
         const { getAgentConfig } = await import("../agent/aiAgent.js");
         const { fetchAvailableModels } = await import("../agent/agentModels.js");
 
-        if (body.baseUrl) await kvSet("ai_agent_base_url", String(body.baseUrl).trim());
-        if (body.apiKey) await kvSet("ai_agent_api_key", String(body.apiKey).trim());
-        if (body.model) await kvSet("ai_agent_model", String(body.model).trim());
+        if (body.baseUrl !== undefined && String(body.baseUrl).trim()) {
+          await kvSet("ai_base_url", String(body.baseUrl).trim());
+        }
+        if (body.apiKey !== undefined && String(body.apiKey).trim()) {
+          await kvSet("ai_api_key", String(body.apiKey).trim());
+        }
+        if (body.model !== undefined && String(body.model).trim()) {
+          await kvSet("ai_model", String(body.model).trim());
+        }
 
-        let modelsMsg = "AI configuration saved";
+        let modelsMsg = "AI configuration saved successfully!";
+        let discoveredModels = [];
         if (body.discover) {
           const updated = await getAgentConfig();
           if (updated.apiKey && updated.baseUrl) {
-            const models = await fetchAvailableModels({
-              apiKey: updated.apiKey,
-              baseUrl: updated.baseUrl,
-            });
-            modelsMsg = `Saved & discovered ${models.length} models`;
+            try {
+              discoveredModels = await fetchAvailableModels(updated.baseUrl, updated.apiKey);
+              modelsMsg = `Saved & discovered ${discoveredModels.length} models`;
+            } catch (discErr) {
+              modelsMsg = `Config saved (model discovery warning: ${discErr?.message || discErr})`;
+            }
+          } else {
+            modelsMsg = "Config saved (set both Base URL and API Key to discover models)";
           }
         }
-        return json(res, 200, { success: true, message: modelsMsg });
+        await writeAudit({ action: "dashboard.agent_config", actor: "dashboard", meta: { discover: !!body.discover } });
+        return json(res, 200, { success: true, message: modelsMsg, discoveredModels });
       }
 
       if (method === "POST" && path === "/api/agent/guardrails") {

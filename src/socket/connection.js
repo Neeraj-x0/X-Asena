@@ -59,6 +59,30 @@ let reconnectAttempt = 0;
 let isConnecting = false;
 let cachedVersion = null;
 let pairingRequested = false;
+let connectionStatus = "connecting";
+let latestQr = null;
+let latestPairingCode = null;
+let lastDisconnectReason = null;
+const recentMessages = [];
+const MAX_RECENT_MESSAGES = 100;
+
+function recordRecentMessage(message) {
+  if (!message) return;
+  recentMessages.unshift({
+    id: message.id || `msg_${Date.now()}`,
+    ts: Date.now(),
+    from: message.from || "",
+    sender: message.senderPn || message.sender || "",
+    senderLid: message.senderLid || null,
+    senderName: message.pushName || message.senderName || "",
+    isGroup: Boolean(message.isGroup),
+    type: message.type || "text",
+    body: String(message.body || "").slice(0, 300),
+  });
+  if (recentMessages.length > MAX_RECENT_MESSAGES) {
+    recentMessages.length = MAX_RECENT_MESSAGES;
+  }
+}
 
 const BASE_BACKOFF_MS = 2000;
 const MAX_BACKOFF_MS = 60_000;
@@ -157,6 +181,8 @@ async function connect() {
       setTimeout(async () => {
         try {
           const code = await conn.requestPairingCode(pairingNumber());
+          latestPairingCode = code;
+          connectionStatus = "pairing";
           console.log("\n🔗 Pairing code (enter on phone):\n");
           console.log(`   ${code}\n`);
           console.log("Phone → Linked devices → Link with phone number\n");
@@ -170,6 +196,11 @@ async function connect() {
     conn.ev.on("connection.update", async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
+      if (qr) {
+        latestQr = qr;
+        connectionStatus = "qr";
+      }
+
       if (qr && !usePairing) {
         qrcode.generate(qr, { small: true });
         console.log("\n📱 Scan the QR code above to log in.\n");
@@ -180,6 +211,10 @@ async function connect() {
 
       if (connection === "open") {
         reconnectAttempt = 0;
+        connectionStatus = "open";
+        latestQr = null;
+        latestPairingCode = null;
+        lastDisconnectReason = null;
         console.log("✅ Connected successfully!");
         startReminderScheduler(conn);
         import("../plugins/automute.js")
@@ -222,6 +257,8 @@ async function connect() {
       if (connection === "close") {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        connectionStatus = "close";
+        lastDisconnectReason = statusCode ?? "closed";
 
         stopReminderScheduler();
         cleanupSocket(conn);
@@ -291,6 +328,8 @@ async function connect() {
         const message = await serialize(msg, conn);
         if (!message) return;
 
+        recordRecentMessage(message);
+
         // Group guards (mute / antilink / antispam) before command routing
         const blocked = await processGroupGuards({ message, conn });
         if (blocked) return;
@@ -318,6 +357,35 @@ async function connect() {
 
 export function getConnection() {
   return globalConnection;
+}
+
+export function getConnectionState() {
+  const conn = globalConnection;
+  const connected = connectionStatus === "open" && Boolean(conn?.user?.id);
+  return {
+    connected,
+    status: connected ? "open" : connectionStatus,
+    user: conn?.user || null,
+    qr: connected ? null : latestQr,
+    pairingCode: connected ? null : latestPairingCode,
+    reconnectAttempt,
+    lastDisconnectReason,
+  };
+}
+
+export function getRecentMessages(limit = 50) {
+  return recentMessages.slice(0, Math.min(limit, MAX_RECENT_MESSAGES));
+}
+
+export async function forceReconnect() {
+  if (globalConnection) {
+    cleanupSocket(globalConnection);
+    globalConnection = null;
+    setConnection(null);
+  }
+  isConnecting = false;
+  connectionStatus = "connecting";
+  return await connect();
 }
 
 export default connect;

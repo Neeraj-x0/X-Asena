@@ -81,13 +81,12 @@ async function buildMenuText(filterCategory = null) {
     /* BotKV may not be ready */
   }
 
-  let text = `╭───『 *${BOT_INFO.NAME.toUpperCase()}* 』───╮\n`;
-  text += `│ • *Version:* v${BOT_INFO.VERSION}\n`;
-  text += `│ • *Prefix:* \`${BOT_INFO.PREFIX}\`\n`;
-  text += `│ • *Mode:* \`${mode}\`\n`;
-  text += `│ • *Commands:* \`${cmds.length}\`\n`;
-  text += `│ • *Language:* \`${lang}\`\n`;
-  text += `╰──────────────────────╯\n\n`;
+  let text = `*${BOT_INFO.NAME.toUpperCase()}*\n`;
+  text += `*Version:* v${BOT_INFO.VERSION}\n`;
+  text += `*Prefix:* \`${BOT_INFO.PREFIX}\`\n`;
+  text += `*Mode:* \`${mode}\`\n`;
+  text += `*Commands:* \`${cmds.length}\`\n`;
+  text += `*Language:* \`${lang}\`\n`;
 
   for (const type of types) {
     const list = byType.get(type) || [];

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Self-Update & Koyeb Auto-Deploy (`#update`)**: Fetch GitHub commits and `CHANGELOG.md` directly in WhatsApp (`#update`), and reply `update now` (or `#update now`) to automatically trigger a Koyeb service redeployment.
+- **Koyeb Deployment Support**: Production `Dockerfile` (with `ffmpeg`), `.dockerignore`, one-click Deploy to Koyeb button in `README.md`, `PORT` / `/health` probe support, and clean `440` (`connectionReplaced`) + `SIGTERM` shutdown handling.
+
 ### Changed
 
 - Switched repository license from MIT to **GNU Affero General Public License v3.0 (AGPL-3.0)** in `LICENSE`, `package.json`, and `README.md` (covering distributed forks and network/SaaS-hosted deployments).

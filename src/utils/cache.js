@@ -49,7 +49,15 @@ export function createTtlCache({ ttlMs = 5 * 60 * 1000, max = 50 } = {}) {
       store.delete(key);
     },
 
+    del(key) {
+      store.delete(key);
+    },
+
     clear() {
+      store.clear();
+    },
+
+    flushAll() {
       store.clear();
     },
 
@@ -65,8 +73,8 @@ export const groupCache = createTtlCache({
   max: 50,
 });
 
-/** Message cache for getMessage retries and anti-delete (~1000 entries, 2 hours) */
+/** Message cache for getMessage retries and anti-delete (~300 entries, 30 min) */
 export const msgCache = createTtlCache({
-  ttlMs: 2 * 60 * 60 * 1000,
-  max: 1000,
+  ttlMs: 30 * 60 * 1000,
+  max: 300,
 });

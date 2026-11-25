@@ -11,11 +11,11 @@ import makeWASocket, {
 } from "baileys";
 import pino from "pino";
 import qrcode from "qrcode-terminal";
-import { useMultiDbAuthState, flushAuthState } from "../database/authState.js";
+import { useMultiDbAuthState, flushAuthState, pruneStaleSessions } from "../database/authState.js";
 import { serialize } from "../messages/serialize.js";
 import { messageHandler } from "../messages/handler.js";
 import { setConnection } from "../terminal/handler.js";
-import { groupCache, msgCache } from "../utils/cache.js";
+import { groupCache, msgCache, createTtlCache } from "../utils/cache.js";
 import { attachGroupParticipantEvents } from "../events/groupParticipants.js";
 import { attachCallEvents } from "../events/callHandler.js";
 import {
@@ -97,6 +97,8 @@ let connectionStatus = "connecting";
 let latestQr = null;
 let latestPairingCode = null;
 let lastDisconnectReason = null;
+let startupPruned = false;
+const signalKeyCache = createTtlCache({ ttlMs: 3 * 60 * 1000, max: 300 });
 const recentMessages = [];
 const MAX_RECENT_MESSAGES = 100;
 
@@ -179,7 +181,7 @@ async function connect() {
       logger,
       auth: {
         creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, logger),
+        keys: makeCacheableSignalKeyStore(state.keys, logger, signalKeyCache),
       },
       syncFullHistory: false,
       shouldSyncHistoryMessage: ({ syncType }) =>
@@ -257,6 +259,14 @@ async function connect() {
         import("../agent/agentCron.js")
           .then(({ startAutonomousAgentScheduler }) => startAutonomousAgentScheduler?.(conn))
           .catch(() => {});
+
+        // Non-blocking closed ratchet cleanup once after boot to keep SQLite & heap lean
+        if (!startupPruned) {
+          startupPruned = true;
+          setTimeout(() => {
+            pruneStaleSessions({ maxClosedPerJid: 3 }).catch(() => {});
+          }, 15_000);
+        }
 
         // System log group + onboarding (never DM the bot itself)
         setTimeout(async () => {

@@ -6,6 +6,7 @@
 import Database from "better-sqlite3";
 import { initAuthCreds, proto } from "baileys";
 import { BufferJSON, sanitizeKey, makeStorageKey } from "./bufferJson.js";
+import { createTtlCache } from "../utils/cache.js";
 
 /**
  * @param {string} dbPath
@@ -17,6 +18,10 @@ export async function useBetterSqliteAuthState(dbPath) {
   db.pragma("journal_mode = WAL");
   db.pragma("synchronous = NORMAL");
   db.pragma("busy_timeout = 5000");
+  db.pragma("temp_store = MEMORY");
+  db.pragma("cache_size = -2000"); // Bound SQLite page cache to ~2MB
+  db.pragma("mmap_size = 0"); // Prevent OS page cache RSS bloat
+  db.pragma("wal_autocheckpoint = 200");
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS AuthState (
@@ -47,6 +52,24 @@ export async function useBetterSqliteAuthState(dbPath) {
     "INSERT INTO BotKV (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
   );
   const stmtKvDelete = db.prepare("DELETE FROM BotKV WHERE key = ?");
+
+  // Hoist single reusable batch transaction for Signal keys
+  const upsertManyTx = db.transaction((entries) => {
+    for (const { key, value } of entries) {
+      if (value) {
+        stmtUpsert.run(
+          sanitizeKey(key),
+          JSON.stringify(value, BufferJSON.replacer)
+        );
+      } else {
+        stmtDelete.run(sanitizeKey(key));
+      }
+    }
+  });
+
+  // Hot in-memory cache for BotKV reads (reduces synchronous SQLite + JSON.parse overhead)
+  const kvCache = createTtlCache({ ttlMs: 5 * 60 * 1000, max: 200 });
+  const KV_MISS = Symbol("KV_MISS");
 
   /** Serial write queue — one async chain (bounded memory vs per-key Map) */
   let writeChain = Promise.resolve();
@@ -147,19 +170,6 @@ export async function useBetterSqliteAuthState(dbPath) {
 
       set: async (data) => {
         return enqueueWrite(async () => {
-          const upsertMany = db.transaction((entries) => {
-            for (const { key, value } of entries) {
-              if (value) {
-                stmtUpsert.run(
-                  sanitizeKey(key),
-                  JSON.stringify(value, BufferJSON.replacer)
-                );
-              } else {
-                stmtDelete.run(sanitizeKey(key));
-              }
-            }
-          });
-
           const entries = [];
           for (const category in data) {
             for (const id in data[category]) {
@@ -169,15 +179,36 @@ export async function useBetterSqliteAuthState(dbPath) {
               });
             }
           }
-          upsertMany(entries);
+          if (entries.length) {
+            upsertManyTx(entries);
+          }
         });
       },
     },
   };
 
-  const saveCreds = async () => writeData(creds, "creds.json");
+  // Debounced saveCreds coalesces bursts of creds.update while flush()/close() saves immediately
+  let credsTimer = null;
+  let credsDirty = false;
+  const saveCreds = async () => {
+    credsDirty = true;
+    if (credsTimer) return;
+    credsTimer = setTimeout(() => {
+      credsTimer = null;
+      if (credsDirty && db.open) {
+        credsDirty = false;
+        writeData(creds, "creds.json").catch(() => {});
+      }
+    }, 250);
+  };
 
   const clearAuthState = async () => {
+    if (credsTimer) {
+      clearTimeout(credsTimer);
+      credsTimer = null;
+    }
+    credsDirty = false;
+    kvCache.clear();
     return enqueueWrite(async () => {
       stmtClear.run();
     });
@@ -193,27 +224,45 @@ export async function useBetterSqliteAuthState(dbPath) {
 
   const botKv = {
     get(key) {
+      const k = String(key);
+      const cached = kvCache.get(k);
+      if (cached !== undefined) {
+        return cached === KV_MISS ? null : cached;
+      }
       try {
-        const row = stmtKvGet.get(String(key));
-        if (!row?.value) return null;
-        return JSON.parse(row.value);
+        const row = stmtKvGet.get(k);
+        if (!row?.value) {
+          kvCache.set(k, KV_MISS);
+          return null;
+        }
+        const parsed = JSON.parse(row.value);
+        kvCache.set(k, parsed);
+        return parsed;
       } catch (err) {
-        console.error(`[botkv-sqlite] get failed (${key}):`, err?.message || err);
+        console.error(`[botkv-sqlite] get failed (${k}):`, err?.message || err);
         return null;
       }
     },
     async set(key, value) {
+      const k = String(key);
+      if (value === null || value === undefined) {
+        kvCache.set(k, KV_MISS);
+      } else {
+        kvCache.set(k, value);
+      }
       return enqueueWrite(async () => {
         if (value === null || value === undefined) {
-          stmtKvDelete.run(String(key));
+          stmtKvDelete.run(k);
           return;
         }
-        stmtKvUpsert.run(String(key), JSON.stringify(value));
+        stmtKvUpsert.run(k, JSON.stringify(value));
       });
     },
     async del(key) {
+      const k = String(key);
+      kvCache.set(k, KV_MISS);
       return enqueueWrite(async () => {
-        stmtKvDelete.run(String(key));
+        stmtKvDelete.run(k);
       });
     },
   };
@@ -233,6 +282,14 @@ export async function useBetterSqliteAuthState(dbPath) {
   };
 
   const flush = async () => {
+    if (credsTimer) {
+      clearTimeout(credsTimer);
+      credsTimer = null;
+    }
+    if (credsDirty && db.open) {
+      credsDirty = false;
+      await writeData(creds, "creds.json").catch(() => {});
+    }
     await writeChain.catch(() => {});
     if (db.open) {
       try {
@@ -354,6 +411,14 @@ export async function useBetterSqliteAuthState(dbPath) {
     pruneStaleSessions,
     botKv,
     close: async () => {
+      if (credsTimer) {
+        clearTimeout(credsTimer);
+        credsTimer = null;
+      }
+      if (credsDirty && db.open) {
+        credsDirty = false;
+        await writeData(creds, "creds.json").catch(() => {});
+      }
       await writeChain.catch(() => {});
       if (db.open) {
         try {

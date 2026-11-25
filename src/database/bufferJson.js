@@ -3,7 +3,12 @@
  */
 
 export const BufferJSON = {
-  replacer: (_key, value) => {
+  // Regular function preserves `this[key]` (pre-toJSON Buffer) to avoid intermediate integer-array allocs
+  replacer: function (key, value) {
+    const raw = this?.[key];
+    if (Buffer.isBuffer(raw)) {
+      return { type: "Buffer", data: raw.toString("base64") };
+    }
     if (value instanceof Buffer) {
       return { type: "Buffer", data: value.toString("base64") };
     }

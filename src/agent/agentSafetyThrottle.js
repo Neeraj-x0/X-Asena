@@ -130,10 +130,19 @@ export async function resolveTargetJid(recipient, context = {}) {
 export async function safeDispatchGroupMessage({
   conn,
   targetJid,
+  groupJid,
   text,
   mentions = [],
 }) {
   const now = Date.now();
+  const chatJid = targetJid || groupJid;
+
+  if (!chatJid || typeof chatJid !== "string" || !chatJid.includes("@")) {
+    return {
+      success: false,
+      error: `INVALID JID: Target chat JID is missing or invalid ("${chatJid}").`,
+    };
+  }
 
   // 1. Enforce Profanity & Abuse Guardrail
   const profanityCheck = containsProfanityOrAbuse(text);
@@ -143,8 +152,6 @@ export async function safeDispatchGroupMessage({
       error: `CONTENT REFUSAL: Message contains profanity or abusive language ("${profanityCheck.matchedWord}"). Please keep messages respectful.`,
     };
   }
-
-  const chatJid = targetJid;
 
   // 2. Anti-Spam Rate Limit Checks (WhatsApp Ban Prevention)
   pruneTimestamps(globalMinuteWindow, now);
@@ -176,8 +183,10 @@ export async function safeDispatchGroupMessage({
     await sleep(MIN_GROUP_INTERVAL_MS - elapsed);
   }
 
-  // 4. Cap mentions to prevent mass-tag abuse
-  let safeMentions = Array.isArray(mentions) ? [...mentions] : [];
+  // 4. Cap mentions to prevent mass-tag abuse & drop invalid JIDs
+  let safeMentions = Array.isArray(mentions)
+    ? mentions.filter((m) => typeof m === "string" && m.includes("@"))
+    : [];
   if (safeMentions.length > MAX_AUTOMATED_MENTIONS) {
     safeMentions = safeMentions.slice(0, MAX_AUTOMATED_MENTIONS);
   }

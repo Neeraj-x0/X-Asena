@@ -429,19 +429,19 @@ export function startAdminHttp() {
 
         let resMsg;
         if (String(target).endsWith("@g.us")) {
-          resMsg = await safeDispatchGroupMessage({ conn, groupJid: target, text });
+          resMsg = await safeDispatchGroupMessage({ conn, targetJid: target, text });
         } else {
           resMsg = await safeDispatchDirectMessage({
             conn,
             recipient: target,
             text,
-            callerJid: conn.user?.id || "dashboard",
+            callerJid: conn.user?.id?.replace(/:\d+@/, "@") || undefined,
           });
         }
 
         if (!resMsg?.success) throw new Error(resMsg?.error || "Failed to send message");
-        await writeAudit({ action: "dashboard.send_message", actor: "dashboard", target });
-        return json(res, 200, { success: true, message: `Message delivered to ${resMsg.recipientJid || target}` });
+        await writeAudit({ action: "dashboard.send_message", actor: "dashboard", target: resMsg.deliveredTo || target });
+        return json(res, 200, { success: true, message: `Message delivered to ${resMsg.deliveredTo || target}` });
       }
 
       if (method === "POST" && path === "/api/messages/poll") {
@@ -501,11 +501,16 @@ export function startAdminHttp() {
         const conn = requireConn({ ...getConnectionState(), conn: getConnection() });
         const { runAgentPrompt } = await import("../agent/aiAgent.js");
 
-        const targetJid = chatJid || conn.user?.id?.replace(/:\d+@/, "@") || "dashboard@s.whatsapp.net";
+        const selfJid = conn.user?.id ? conn.user.id.replace(/:\d+@/, "@") : "";
+        const targetJid =
+          chatJid && String(chatJid).includes("@") ? String(chatJid).trim() : selfJid;
+        if (!targetJid || !targetJid.includes("@")) {
+          throw new Error("No valid target WhatsApp JID available for agent execution.");
+        }
         const syntheticMsg = {
           from: targetJid,
-          sender: conn.user?.id || targetJid,
-          participant: conn.user?.id || targetJid,
+          sender: selfJid || targetJid,
+          participant: selfJid || targetJid,
           isGroup: targetJid.endsWith("@g.us"),
           isBotMessage: false,
           body: prompt,
@@ -620,12 +625,17 @@ export function startAdminHttp() {
         if (!cmd) cmd = findCommand(fullBody);
         if (!cmd) throw new Error(`Command "${clean}" not found`);
 
-        const targetJid = chatJid || conn.user?.id?.replace(/:\d+@/, "@");
+        const selfJid = conn.user?.id ? conn.user.id.replace(/:\d+@/, "@") : "";
+        const targetJid =
+          chatJid && String(chatJid).includes("@") ? String(chatJid).trim() : selfJid;
+        if (!targetJid || !targetJid.includes("@")) {
+          throw new Error("No valid target WhatsApp JID available to run command.");
+        }
         const syntheticMsg = {
           from: targetJid,
-          sender: conn.user?.id || targetJid,
-          participant: conn.user?.id || targetJid,
-          isGroup: Boolean(targetJid?.endsWith("@g.us")),
+          sender: selfJid || targetJid,
+          participant: selfJid || targetJid,
+          isGroup: Boolean(targetJid.endsWith("@g.us")),
           isBotMessage: false,
           body: fullBody,
           message: { conversation: fullBody },

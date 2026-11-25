@@ -61,6 +61,22 @@ export function getDigitSum(numStr) {
 }
 
 /**
+ * Normalize participant JIDs/numbers so bare digits become valid PN JIDs without corrupting LIDs.
+ */
+function normalizeMemberJids(rawMembers) {
+  const list = Array.isArray(rawMembers) ? rawMembers : [rawMembers];
+  return list
+    .filter(Boolean)
+    .map((t) => {
+      const s = String(t).trim().replace(/^@/, "");
+      if (s.includes("@")) return s;
+      const d = s.replace(/\D/g, "");
+      return d ? `${d}@s.whatsapp.net` : "";
+    })
+    .filter(Boolean);
+}
+
+/**
  * Available tool definitions for OpenAI-compatible function calling
  */
 export const AGENT_TOOLS = [
@@ -1205,7 +1221,7 @@ export async function executeAgentTool(name, args, context) {
       };
     }
 
-    const targets = Array.isArray(args.members) ? args.members : [args.members];
+    const targets = normalizeMemberJids(args.members);
     const botJid = conn.user?.id ? normalizeNumber(conn.user.id.replace(/:\d+@/, "@")) : "";
 
     const validTargets = targets.filter((j) => {
@@ -1254,7 +1270,8 @@ export async function executeAgentTool(name, args, context) {
     if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not a group admin." };
     if (!botAdmin) return { error: "PERMISSION DENIED: Bot is not an admin." };
 
-    const targets = Array.isArray(args.members) ? args.members : [args.members];
+    const targets = normalizeMemberJids(args.members);
+    if (!targets.length) return { error: "No valid participant JIDs provided." };
     try {
       await conn.groupParticipantsUpdate(groupJid, targets, "promote");
       groupCache.delete(groupJid);
@@ -1270,7 +1287,8 @@ export async function executeAgentTool(name, args, context) {
     if (!callerAdmin) return { error: "PERMISSION DENIED: Caller is not a group admin." };
     if (!botAdmin) return { error: "PERMISSION DENIED: Bot is not an admin." };
 
-    const targets = Array.isArray(args.members) ? args.members : [args.members];
+    const targets = normalizeMemberJids(args.members);
+    if (!targets.length) return { error: "No valid participant JIDs provided." };
     try {
       await conn.groupParticipantsUpdate(groupJid, targets, "demote");
       groupCache.delete(groupJid);

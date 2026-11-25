@@ -93,6 +93,7 @@ X-Asena includes a production `Dockerfile` (with `ffmpeg` pre-installed), `.dock
    - `DATABASE_URL` — PostgreSQL connection string (`postgresql://...`)
    - `OWNER_NUMBER` — Your WhatsApp phone number (country code, no `+`)
    - `ADMIN_HTTP_TOKEN` — Strong secret to protect the Web Dashboard & Ops APIs
+   - `KOYEB_API_TOKEN` _(optional)_ — Koyeb API token so `#update now` in WhatsApp automatically triggers a Koyeb redeploy (`KOYEB_SERVICE_ID` is auto-detected on Koyeb; or configure via `#update token <key>`)
    - `PAIRING_NUMBER` _(optional)_ — Phone number for pairing-code login, or scan the QR live in the Web Dashboard (`https://<your-app>.koyeb.app/?token=YOUR_TOKEN`)
 
 > Without `ADMIN_HTTP_TOKEN`, Koyeb deployments automatically stay in **health-check-only mode** (`/health` returns `200 OK`; the dashboard and API routes stay disabled).
@@ -157,7 +158,7 @@ Run `#menu` in WhatsApp for the interactive categorized list, or `#help <command
 | **Status** | `#save` (`#statussaver`), `#poststatus`, `#autostatus` |
 | **Media & Downloads** | `#sticker` (`#s`), `#take` (`#steal`), `#toimg`, `#stickeraudio` (`#sa`), `#tomp3`, `#toururl` (`#url`), `#quote`, `#fancy`, `#tts`, `#ttp`, `#attp`, `#removebg`, `#play`, `#yt` (`#ytdl`), `#ytmp3`, `#ytmp4`, `#ig`, `#tiktok`, `#fb` |
 | **Tools & Productivity** | `#note`, `#remind`, `#reminders`, `#cancelremind`, `#poll`, `#vcard`, `#loc`, `#checkwa`, `#whois`, `#getbio`, `#inspect`, `#join` |
-| **Enterprise & Owner** | `#audit`, `#flag`, `#policy`, `#role`, `#backup`, `#metrics`, `#broadcast`, `#mode`, `#sudo`, `#setnamebot`, `#setpp`, `#delpp`, `#setbio`, `#exif`, `#createlog`, `#setlog`, `#setup` |
+| **Enterprise & Owner** | `#update`, `#audit`, `#flag`, `#policy`, `#role`, `#backup`, `#metrics`, `#broadcast`, `#mode`, `#sudo`, `#setnamebot`, `#setpp`, `#delpp`, `#setbio`, `#exif`, `#createlog`, `#setlog`, `#setup` |
 
 ---
 

@@ -37,6 +37,7 @@ const AUDIT_ACTIONS = new Set([
   "backup",
   "setlog",
   "createlog",
+  "update",
 ]);
 
 export async function messageHandler(params) {
@@ -58,6 +59,9 @@ export async function messageHandler(params) {
         const { handleAdminConfirmation } = await import("../agent/agentGuardrails.js");
         const confirmed = await handleAdminConfirmation({ message, conn });
         if (confirmed) return;
+
+        const { handlePendingUpdateConfirmation } = await import("../plugins/update.js");
+        if (await handlePendingUpdateConfirmation({ message, conn })) return;
 
         const { checkAndHandleAgentTrigger } = await import("../agent/aiAgent.js");
         const handled = await checkAndHandleAgentTrigger({ message, conn });

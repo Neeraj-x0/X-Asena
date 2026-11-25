@@ -24,6 +24,7 @@ export const PRIVILEGED_COMMANDS = new Set([
   "role",
   "backup",
   "metrics",
+  "update",
 ]);
 
 /** Owner-only (not sudo) — plugin may still allow sudo list */
@@ -33,6 +34,7 @@ export const OWNER_ONLY_COMMANDS = new Set([
   "setlog",
   "createlog",
   "backup",
+  "update",
 ]);
 
 /**

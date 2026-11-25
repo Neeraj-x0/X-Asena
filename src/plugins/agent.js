@@ -35,6 +35,14 @@ command(
     pattern: "agent",
     fromMe: false,
     desc: "Autonomous AI agent for group tasks and complex queries",
+    usage: "#agent <natural_language_prompt>",
+    params: {
+      argsRequired: true,
+      requiresQuoted: "optional",
+      format: "<prompt>",
+      description: "Natural language instruction or question for the AI agent.",
+      examples: ["summarize last 10 messages", "lock group in 30m"],
+    },
     type: "tools",
   },
   async (message, conn) => {
@@ -95,6 +103,14 @@ command(
     pattern: "agentconfig",
     fromMe: true,
     desc: "Configure OpenAI-compatible API key, Base URL, and discover models",
+    usage: "#agentconfig <key|url|model|models|status> [value]",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[key <api_key>|url <base_url>|model <model_id>|models|status]",
+      description: "Configure AI provider settings or trigger model discovery.",
+      examples: ["status", "models", "model llama-3.3-70b-versatile"],
+    },
     type: "owner",
   },
   async (message, conn) => {
@@ -229,6 +245,14 @@ command(
     pattern: "agentpersona",
     fromMe: false,
     desc: "Configure agent personality tone (executive|strict-mod|witty|tutor|default)",
+    usage: "#agentpersona [executive|strict-mod|witty|tutor|default|custom <prompt>]",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[preset_name|custom <instructions>]",
+      description: "Switch agent operational tone or set a custom personality prompt.",
+      examples: ["strict-mod", "witty", "custom Speak like a pirate"],
+    },
     type: "tools",
   },
   async (message, conn) => {
@@ -277,6 +301,14 @@ command(
     pattern: "agentkb",
     fromMe: false,
     desc: "Manage verified Knowledge Base articles (add|list|del|search)",
+    usage: "#agentkb <list|add Title | Content|del id_or_title|search query>",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[list|add <title> | <content>|del <id_or_title>|search <query>]",
+      description: "Add, search, delete, or list persistent Knowledge Base RAG entries.",
+      examples: ["list", "add Rules | No spam allowed", "search rules"],
+    },
     type: "tools",
   },
   async (message, conn) => {
@@ -357,6 +389,14 @@ command(
     pattern: "confirm",
     fromMe: false,
     desc: "Confirm a high-risk mass action triggered by the AI agent",
+    usage: "#confirm [action_id]",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[confirm_id]",
+      description: "Pass confirmation ID or leave empty to confirm latest pending high-risk action.",
+      examples: [""],
+    },
     type: "admin",
     groupOnly: true,
   },
@@ -375,6 +415,14 @@ command(
     pattern: "agentmemory",
     fromMe: false,
     desc: "Inspect or clear persistent memories stored by the agent",
+    usage: "#agentmemory [clear|reset]",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[clear|reset]",
+      description: "Leave empty to view stored memories, or pass 'clear' to wipe memories for this chat.",
+      examples: ["", "clear"],
+    },
     type: "tools",
   },
   async (message, conn) => {
@@ -416,6 +464,14 @@ command(
     pattern: "agenttasks",
     fromMe: false,
     desc: "Inspect or cancel scheduled autonomous agent cron jobs",
+    usage: "#agenttasks [cancel <task_id>]",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[cancel <task_id>]",
+      description: "Leave empty to list active scheduled tasks, or pass 'cancel <task_id>' to cancel one.",
+      examples: ["", "cancel task_17325"],
+    },
     type: "tools",
   },
   async (message, conn) => {
@@ -459,6 +515,14 @@ command(
     pattern: "agentwatchers",
     fromMe: false,
     desc: "Inspect or cancel active real-time event watchers",
+    usage: "#agentwatchers [cancel <watcher_id>]",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[cancel <watcher_id>]",
+      description: "Leave empty to list active real-time event watchers, or pass 'cancel <watcher_id>' to remove one.",
+      examples: ["", "cancel watch_17325"],
+    },
     type: "tools",
   },
   async (message, conn) => {
@@ -512,6 +576,14 @@ command(
     pattern: "agentguard",
     fromMe: false,
     desc: "Inspect or configure AI prompt injection guardrails",
+    usage: "#agentguard [status|on|off|mode strict|standard|logs|clearlogs|test <prompt>]",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[status|on|off|mode <strict|standard>|logs|clearlogs|test <sample>]",
+      description: "Configure prompt injection guardrails, inspect incident logs, or test a sample prompt.",
+      examples: ["status", "mode strict", "logs"],
+    },
     type: "tools",
   },
   async (message, conn) => {
@@ -619,59 +691,6 @@ command(
     text += `• \`${BOT_INFO.PREFIX}agentguard logs\` — View blocked injection attempts\n`;
     text += `• \`${BOT_INFO.PREFIX}agentguard clearlogs\` — Clear audit log\n`;
     text += `• \`${BOT_INFO.PREFIX}agentguard test <prompt>\` — Test prompt against scanner`;
-
-    return await reply(conn, message, text);
-  }
-);
-
-// ==================== AGENT REAL-TIME EVENT WATCHERS ====================
-command(
-  {
-    pattern: "agentwatchers",
-    fromMe: false,
-    desc: "Inspect or cancel active real-time event watchers",
-    type: "tools",
-  },
-  async (message, conn) => {
-    const { listEventWatchers, cancelEventWatcher } = await import("../agent/agentEvents.js");
-    const raw = (getCommandArgs(message.body, "agentwatchers") || "").trim();
-    const [sub, targetId] = raw.split(/\s+/);
-    const chatJid = message.from;
-
-    if (sub === "cancel" || sub === "del") {
-      if (!targetId) {
-        return await replyFail(
-          conn,
-          message,
-          `Usage: \`${BOT_INFO.PREFIX}agentwatchers cancel <watcher_id>\``
-        );
-      }
-      const ok = await cancelEventWatcher(targetId, chatJid);
-      if (!ok) return await replyFail(conn, message, "Watcher not found or not in this chat.");
-      return await replyOk(conn, message, `Event watcher \`${targetId}\` cancelled.`);
-    }
-
-    const watchers = await listEventWatchers(chatJid);
-    if (!watchers.length) {
-      return await reply(
-        conn,
-        message,
-        `🎯 *ACTIVE EVENT WATCHERS*\n\n_No active event watchers registered in this chat._\n\n` +
-          `Set watchers via AI prompt, e.g.:\n` +
-          `> *"#ask unlock the group when @user leaves"*`
-      );
-    }
-
-    let text = `🎯 *ACTIVE EVENT WATCHERS (${watchers.length}):*\n\n`;
-    watchers.forEach((w, i) => {
-      text += `*${i + 1}. [${w.eventType.toUpperCase()}] ${w.id}*\n`;
-      if (w.targetUser) text += `   • Target User: \`${w.targetUser}\`\n`;
-      if (w.matchPattern) text += `   • Pattern: \`${w.matchPattern}\`\n`;
-      text += `   • Action: "${w.action}"\n`;
-      if (w.linkedTaskId) text += `   • Linked Task: \`${w.linkedTaskId}\`\n`;
-      text += `   • One-time: \`${w.once ? "Yes" : "No"}\`\n\n`;
-    });
-    text += `_To cancel a watcher: \`${BOT_INFO.PREFIX}agentwatchers cancel <watcher_id>\`_`;
 
     return await reply(conn, message, text);
   }

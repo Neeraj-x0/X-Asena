@@ -12,6 +12,8 @@ command(
         pattern: "info",
         fromMe: false,
         desc: "Shows user and message information",
+        usage: "#info",
+        params: { argsRequired: false, requiresQuoted: "optional", format: "", description: "Displays JID/LID and identity info for sender, chat, or quoted message." },
         type: "info",
     },
     async (message, conn) => {

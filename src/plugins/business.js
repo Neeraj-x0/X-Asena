@@ -52,6 +52,14 @@ command(
     pattern: "business",
     fromMe: true,
     desc: "Configure WhatsApp Business features authorization",
+    usage: "#business [enable|disable|status]",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[enable|disable|status]",
+      description: "Enable or disable WhatsApp Business API commands, or inspect status.",
+      examples: ["enable", "disable", "status"],
+    },
     type: "business",
   },
   async (message, conn) => {
@@ -99,6 +107,14 @@ command(
     pattern: "catalog",
     fromMe: false,
     desc: "View product catalog of a business account",
+    usage: "#catalog [phone_number or @mention]",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[phone_number|@user]",
+      description: "Target business merchant phone number or leave empty to view bot's catalog.",
+      examples: ["1234567890", ""],
+    },
     type: "business",
   },
   async (message, conn) => {
@@ -151,6 +167,14 @@ command(
     pattern: "collections",
     fromMe: false,
     desc: "View product collections of a business account",
+    usage: "#collections [phone_number or @mention]",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[phone_number|@user]",
+      description: "Target merchant phone number or leave empty for bot's collections.",
+      examples: ["1234567890", ""],
+    },
     type: "business",
   },
   async (message, conn) => {
@@ -201,6 +225,14 @@ command(
     pattern: "setbiz",
     fromMe: true,
     desc: "Update business profile fields (address|email|desc|website)",
+    usage: "#setbiz <address|email|desc|website> <value>",
+    params: {
+      argsRequired: true,
+      requiresQuoted: false,
+      format: "<address|email|desc|website> <value>",
+      description: "Specify field name followed by new text value.",
+      examples: ["email support@example.com", "website https://example.com"],
+    },
     type: "business",
   },
   async (message, conn) => {
@@ -254,6 +286,14 @@ command(
     pattern: "coverphoto",
     fromMe: true,
     desc: "Upload or remove WhatsApp Business cover photo from quoted image",
+    usage: "#coverphoto [del|remove] (reply to an image to upload)",
+    params: {
+      argsRequired: false,
+      requiresQuoted: "optional",
+      format: "[del|remove]",
+      description: "Reply to an image to upload cover photo, or pass 'del' to remove it.",
+      examples: ["", "del"],
+    },
     type: "business",
   },
   async (message, conn) => {

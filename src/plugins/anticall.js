@@ -16,6 +16,14 @@ command(
     pattern: "anticall",
     fromMe: true,
     desc: "Configure auto-rejection or blocking for incoming WhatsApp calls",
+    usage: "#anticall [on|block|off]",
+    params: {
+      argsRequired: false,
+      requiresQuoted: false,
+      format: "[on|block|off]",
+      description: "Pass 'on' to reject calls, 'block' to reject & block callers, 'off' to disable, or empty to view current status.",
+      examples: ["on", "block", "off", ""],
+    },
     type: "security",
   },
   async (message, conn) => {

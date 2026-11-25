@@ -24,6 +24,8 @@ command(
     pattern: "mode",
     fromMe: true,
     desc: "Show or set bot mode (public|private)",
+    usage: "#mode [public|private]",
+    params: { argsRequired: false, requiresQuoted: false, format: "[public|private]", description: "View current bot mode or switch between 'public' and 'private'." },
     type: "owner",
   },
   async (message, conn) => {
@@ -60,6 +62,8 @@ command(
     pattern: "sudo",
     fromMe: true,
     desc: "Manage sudo users (add|del|list)",
+    usage: "#sudo [add|del|list] [@user|number]",
+    params: { argsRequired: false, requiresQuoted: "optional", format: "<add <@user|number>|del <@user|number>|list>", description: "Add, remove, or list sudo privileged users." },
     type: "owner",
   },
   async (message, conn) => {
@@ -122,6 +126,8 @@ command(
     pattern: "setpp",
     fromMe: true,
     desc: "Set bot's profile picture from quoted image",
+    usage: "#setpp (reply to an image)",
+    params: { argsRequired: false, requiresQuoted: true, format: "", description: "Reply to an image to set it as bot profile photo." },
     type: "owner",
   },
   async (message, conn) => {
@@ -154,6 +160,8 @@ command(
     pattern: "delpp",
     fromMe: true,
     desc: "Remove bot's profile picture",
+    usage: "#delpp",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "Removes the bot's WhatsApp profile photo." },
     type: "owner",
   },
   async (message, conn) => {
@@ -173,6 +181,8 @@ command(
     pattern: "setbio",
     fromMe: true,
     desc: "Update bot's WhatsApp About / Status text",
+    usage: "#setbio <new_status_text>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<text>", description: "New profile status/About text for the bot account." },
     type: "owner",
   },
   async (message, conn) => {
@@ -195,6 +205,8 @@ command(
     pattern: "block",
     fromMe: true,
     desc: "Block a user from contacting the bot",
+    usage: "#block <@user|phone_number> (or reply to user)",
+    params: { argsRequired: false, requiresQuoted: "optional", format: "<@user|number>", description: "Block the specified user or sender of the quoted message." },
     type: "security",
   },
   async (message, conn) => {
@@ -218,6 +230,8 @@ command(
     pattern: "unblock",
     fromMe: true,
     desc: "Unblock a user",
+    usage: "#unblock <@user|phone_number>",
+    params: { argsRequired: false, requiresQuoted: "optional", format: "<@user|number>", description: "Unblock a previously blocked WhatsApp user." },
     type: "security",
   },
   async (message, conn) => {
@@ -241,6 +255,8 @@ command(
     pattern: "blocklist",
     fromMe: true,
     desc: "View the list of blocked WhatsApp users",
+    usage: "#blocklist",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "Returns all phone numbers currently blocked by the bot." },
     type: "security",
   },
   async (message, conn) => {
@@ -266,6 +282,8 @@ command(
     pattern: "disappearing",
     fromMe: false,
     desc: "Set disappearing messages timer in chat (24h|7d|90d|off)",
+    usage: "#disappearing <24h|7d|90d|off>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<24h|7d|90d|off>", description: "Sets disappearing message duration timer or disables with 'off'." },
     type: "admin",
   },
   async (message, conn) => {

@@ -155,6 +155,8 @@ command(
     pattern: "sticker",
     fromMe: false,
     desc: "Convert image/video to sticker",
+    usage: "#sticker [pack|author] (reply to or send with image/video)",
+    params: { argsRequired: false, requiresQuoted: "optional", format: "[pack|author]", description: "Convert image or short video into a WhatsApp WebP sticker." },
     type: "media",
   },
   async (message, conn) => {
@@ -256,6 +258,8 @@ command(
     pattern: "take",
     fromMe: false,
     desc: "Repack sticker EXIF (Pack|Author)",
+    usage: "#take <pack_name>|<author_name> (reply to sticker)",
+    params: { argsRequired: false, requiresQuoted: true, format: "[pack|author]", description: "Re-write sticker metadata EXIF pack and author names." },
     type: "media",
   },
   takeHandler
@@ -281,6 +285,8 @@ command(
     pattern: "toimg",
     fromMe: false,
     desc: "Convert sticker to PNG",
+    usage: "#toimg (reply to sticker)",
+    params: { argsRequired: false, requiresQuoted: true, format: "", description: "Converts a static sticker back into a PNG image." },
     type: "media",
   },
   async (message, conn) => {
@@ -316,6 +322,8 @@ command(
     pattern: "exif",
     fromMe: true,
     desc: "Set sticker pack|author (owner)",
+    usage: "#exif <pack_name>|<author_name>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<pack>|<author>", description: "Set global default sticker pack and author names." },
     type: "owner",
   },
   async (message, conn) => {

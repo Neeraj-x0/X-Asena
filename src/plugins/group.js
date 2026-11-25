@@ -12,6 +12,8 @@ command(
     pattern: "mention",
     fromMe: false,
     desc: "Mention all users in group",
+    usage: "#mention [custom_text]",
+    params: { argsRequired: false, requiresQuoted: false, format: "[text]", description: "Mention all participants in the group with optional message text." },
     type: "group",
     groupOnly: true,
   },

@@ -16,6 +16,8 @@ command(
     pattern: "archive",
     fromMe: true,
     desc: "Archive the current chat",
+    usage: "#archive",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "No parameters required." },
     type: "chats",
   },
   async (message, conn) => {
@@ -36,6 +38,8 @@ command(
     pattern: "unarchive",
     fromMe: true,
     desc: "Unarchive the current chat",
+    usage: "#unarchive",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "No parameters required." },
     type: "chats",
   },
   async (message, conn) => {
@@ -57,6 +61,8 @@ command(
     pattern: "pinchat",
     fromMe: true,
     desc: "Pin this chat to the top of WhatsApp chat list",
+    usage: "#pinchat",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "No parameters required." },
     type: "chats",
   },
   async (message, conn) => {
@@ -77,6 +83,8 @@ command(
     pattern: "unpinchat",
     fromMe: true,
     desc: "Unpin this chat from the top of chat list",
+    usage: "#unpinchat",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "No parameters required." },
     type: "chats",
   },
   async (message, conn) => {
@@ -98,6 +106,8 @@ command(
     pattern: "mutechat",
     fromMe: true,
     desc: "Mute chat notifications (8h|1w|always|unmute)",
+    usage: "#mutechat <8h|1w|always|unmute>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<8h|1w|always|unmute>", description: "Duration to mute chat notifications or 'unmute'." },
     type: "chats",
   },
   async (message, conn) => {
@@ -132,6 +142,8 @@ command(
     pattern: "star",
     fromMe: false,
     desc: "Star a quoted message to bookmark it",
+    usage: "#star (reply to message)",
+    params: { argsRequired: false, requiresQuoted: true, format: "", description: "Reply to any message to star it." },
     type: "chats",
   },
   async (message, conn) => {
@@ -162,6 +174,8 @@ command(
     pattern: "unstar",
     fromMe: false,
     desc: "Unstar a quoted message",
+    usage: "#unstar (reply to message)",
+    params: { argsRequired: false, requiresQuoted: true, format: "", description: "Reply to a starred message to unstar it." },
     type: "chats",
   },
   async (message, conn) => {
@@ -192,6 +206,8 @@ command(
     pattern: "clearchat",
     fromMe: true,
     desc: "Clear chat messages in this conversation",
+    usage: "#clearchat",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "Clears message history in current chat." },
     type: "chats",
   },
   async (message, conn) => {
@@ -226,6 +242,8 @@ command(
     pattern: "setnamebot",
     fromMe: true,
     desc: "Update bot's WhatsApp PushName visible to other users",
+    usage: "#setnamebot <new_name>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<new_name>", description: "New display name (PushName) for the bot." },
     type: "owner",
   },
   async (message, conn) => {

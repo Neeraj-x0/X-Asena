@@ -21,6 +21,14 @@ command(
     pattern: "vv",
     fromMe: false,
     desc: "Recover and reveal a View-Once image, video, or voice note",
+    usage: "#vv [on|chat|pm|off] (or reply to view-once media with empty args)",
+    params: {
+      argsRequired: false,
+      requiresQuoted: "optional",
+      format: "[on|chat|pm|off]",
+      description: "Reply to a view-once message with empty args to reveal it, or pass 'on'/'chat'/'pm'/'off' to configure automatic view-once capture.",
+      examples: ["", "on", "pm", "off"],
+    },
     type: "security",
   },
   async (message, conn) => {

@@ -74,6 +74,8 @@ command(
     pattern: "tomp3",
     fromMe: false,
     desc: "Convert video/audio to mp3",
+    usage: "#tomp3 (reply to video or audio)",
+    params: { argsRequired: false, requiresQuoted: true, format: "", description: "Extracts or converts quoted video/voice note into MP3 audio." },
     type: "media",
   },
   async (message, conn) => {
@@ -159,6 +161,8 @@ command(
     pattern: "toururl",
     fromMe: false,
     desc: "Upload media and get a URL",
+    usage: "#toururl (reply to image/video/audio)",
+    params: { argsRequired: false, requiresQuoted: true, format: "", description: "Uploads quoted media file and returns a public URL." },
     type: "media",
   },
   urlHandler
@@ -180,6 +184,8 @@ command(
     pattern: "quote",
     fromMe: false,
     desc: "Fake quote sticker from text / reply",
+    usage: "#quote <text> (or reply to message)",
+    params: { argsRequired: false, requiresQuoted: "optional", format: "[text]", description: "Creates a fake chat quote sticker from message or text." },
     type: "media",
   },
   async (message, conn) => {
@@ -240,6 +246,8 @@ command(
     pattern: "fancy",
     fromMe: false,
     desc: "Fancy unicode text styles",
+    usage: "#fancy <text>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<text>", description: "Generates decorative Unicode font variants of the input text." },
     type: "media",
   },
   async (message, conn) => {
@@ -265,6 +273,8 @@ command(
     pattern: "tts",
     fromMe: false,
     desc: "Google TTS audio",
+    usage: "#tts [lang_code] <text>",
+    params: { argsRequired: true, requiresQuoted: "optional", format: "[lang] <text>", description: "Converts text to Google TTS voice audio (e.g. 'en Hello world' or 'es Hola')." },
     type: "media",
   },
   async (message, conn) => {
@@ -409,6 +419,8 @@ command(
     pattern: "ttp",
     fromMe: false,
     desc: "Text to sticker",
+    usage: "#ttp <text>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<text>", description: "Renders input text onto a styled transparent WhatsApp sticker." },
     type: "media",
   },
   async (message, conn) => {
@@ -427,6 +439,8 @@ command(
     pattern: "attp",
     fromMe: false,
     desc: "Animated text sticker",
+    usage: "#attp <text>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<text>", description: "Renders color-cycling animated text onto a WhatsApp sticker." },
     type: "media",
   },
   async (message, conn) => {
@@ -445,6 +459,8 @@ command(
     pattern: "removebg",
     fromMe: false,
     desc: "Remove image background (API key)",
+    usage: "#removebg (reply to an image)",
+    params: { argsRequired: false, requiresQuoted: true, format: "", description: "Removes background from quoted image (requires REMOVEBG_API_KEY)." },
     type: "media",
   },
   async (message, conn) => {

@@ -372,6 +372,8 @@ command(
     pattern: "yt",
     fromMe: false,
     desc: "YouTube info / usage",
+    usage: "#yt <youtube_url>",
+    params: { argsRequired: false, requiresQuoted: false, format: "<youtube_url>", description: "Display metadata/details or usage info for a YouTube video." },
     type: "downloader",
   },
   async (message, conn) => {
@@ -445,6 +447,8 @@ command(
     pattern: "ytmp3",
     fromMe: false,
     desc: "Download YouTube audio (mp3)",
+    usage: "#ytmp3 <youtube_url>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<youtube_url>", description: "YouTube video/shorts URL to download as MP3 audio." },
     type: "downloader",
   },
   async (message, conn) => {
@@ -476,6 +480,8 @@ command(
     pattern: "ytmp4",
     fromMe: false,
     desc: "Download YouTube video ≤720p",
+    usage: "#ytmp4 <youtube_url>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<youtube_url>", description: "YouTube video URL to download as MP4 video (max 720p)." },
     type: "downloader",
   },
   async (message, conn) => {
@@ -507,6 +513,8 @@ command(
     pattern: "play",
     fromMe: false,
     desc: "Search YouTube and play first audio",
+    usage: "#play <song_name_or_query>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<search_query>", description: "Searches YouTube and sends the audio for the top result." },
     type: "downloader",
   },
   async (message, conn) => {

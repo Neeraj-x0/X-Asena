@@ -25,6 +25,8 @@ command(
     pattern: "note",
     fromMe: false,
     desc: "Save/get/delete personal notes",
+    usage: "#note <set <id> <text>|get <id>|del <id>|list>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<set <id> <text>|get <id>|del <id>|list>", description: "Manage saved personal text notes by key ID.", examples: ["set todo Buy groceries", "get todo", "list"] },
     type: "tools",
   },
   async (message, conn) => {
@@ -116,6 +118,8 @@ command(
     pattern: "remind",
     fromMe: false,
     desc: "Set a reminder (e.g. 10m buy milk)",
+    usage: "#remind <delay> <reminder_text>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<duration> <message>", description: "Set a timed reminder (e.g. '10m check server', '2h call team').", examples: ["10m buy milk", "1h standup meeting"] },
     type: "tools",
   },
   async (message, conn) => {
@@ -160,6 +164,8 @@ command(
     pattern: "reminders",
     fromMe: false,
     desc: "List pending reminders in this chat",
+    usage: "#reminders",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "Lists all active reminders scheduled in this chat." },
     type: "tools",
   },
   async (message, conn) => {
@@ -186,6 +192,8 @@ command(
     pattern: "cancelremind",
     fromMe: false,
     desc: "Cancel reminder by id",
+    usage: "#cancelremind <reminder_id>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<id>", description: "ID of the pending reminder to cancel." },
     type: "tools",
   },
   async (message, conn) => {
@@ -208,6 +216,8 @@ command(
     pattern: "poll",
     fromMe: false,
     desc: "Create a poll: question | opt1 | opt2",
+    usage: "#poll <question> | <option1> | <option2> ...",
+    params: { argsRequired: true, requiresQuoted: false, format: "<question> | <opt1> | <opt2> [| <opt3>...]", description: "Pipe-separated question and 2-12 options to send a WhatsApp poll.", examples: ["Favorite language? | JS | Python | Go"] },
     type: "tools",
   },
   async (message, conn) => {

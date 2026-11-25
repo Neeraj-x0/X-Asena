@@ -42,6 +42,8 @@ command(
     pattern: "audit",
     fromMe: true,
     desc: "Show audit log (system group)",
+    usage: "#audit [limit|action_filter|clear]",
+    params: { argsRequired: false, requiresQuoted: false, format: "[limit|filter|clear]", description: "Read recent audit entries, filter by action/limit, or pass 'clear'." },
     type: "owner",
   },
   async (message, conn) => {
@@ -93,6 +95,8 @@ command(
     pattern: "flag",
     fromMe: true,
     desc: "Feature flags: #flag list | #flag media off",
+    usage: "#flag [list|<flag_name> <on|off>]",
+    params: { argsRequired: false, requiresQuoted: false, format: "[list|<name> <on|off>]", description: "View feature flags or toggle a feature flag." },
     type: "owner",
   },
   async (message, conn) => {
@@ -143,6 +147,8 @@ command(
     pattern: "policy",
     fromMe: true,
     desc: "View/set global policies",
+    usage: "#policy [list|<key> <value>]",
+    params: { argsRequired: false, requiresQuoted: false, format: "[list|<key> <value>]", description: "View active policies or set a policy key value (e.g. 'rateLimitPerUser 30')." },
     type: "owner",
   },
   async (message, conn) => {
@@ -187,6 +193,8 @@ command(
     pattern: "role",
     fromMe: true,
     desc: "RBAC: #role set @user admin | list",
+    usage: "#role <list|me|set @user role>",
+    params: { argsRequired: false, requiresQuoted: false, format: "[list|me|set <@user|number> <role>]", description: "Inspect RBAC roles or assign a role to a user." },
     type: "owner",
   },
   async (message, conn) => {
@@ -258,6 +266,8 @@ command(
     pattern: "backup",
     fromMe: true,
     desc: "Export BotKV backup (optional auth db)",
+    usage: "#backup [full|auth]",
+    params: { argsRequired: false, requiresQuoted: false, format: "[full|auth]", description: "Export BotKV backup JSON; pass 'full' or 'auth' to also include auth DB." },
     type: "owner",
   },
   async (message, conn) => {
@@ -301,6 +311,8 @@ command(
     pattern: "metrics",
     fromMe: true,
     desc: "Show runtime metrics",
+    usage: "#metrics",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "No parameters required." },
     type: "owner",
   },
   async (message, conn) => {

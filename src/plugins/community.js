@@ -15,6 +15,14 @@ command(
     pattern: "community",
     fromMe: true,
     desc: "WhatsApp Community management (create|info|link|unlink|groups|leave)",
+    usage: "#community <create|info|link|unlink|groups|leave> <args>",
+    params: {
+      argsRequired: true,
+      requiresQuoted: false,
+      format: "<create Name | Desc | info <CommunityJID> | link <GroupJID> <CommunityJID> | unlink <GroupJID> <CommunityJID> | groups <CommunityJID> | leave <CommunityJID>>",
+      description: "Create and manage WhatsApp Communities and linked subgroups.",
+      examples: ["create Dev Hub | Developer community", "groups 120363...@g.us"],
+    },
     type: "social",
   },
   async (message, conn) => {

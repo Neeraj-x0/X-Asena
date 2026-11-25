@@ -331,6 +331,8 @@ command(
     pattern: "stickeraudio",
     fromMe: false,
     desc: "Create an audio sticker (sound sticker) from image/video and audio",
+    usage: "#stickeraudio (reply to audio/image/video)",
+    params: { argsRequired: false, requiresQuoted: true, format: "[pack|author]", description: "Reply to an image/video or audio message to create a sound sticker." },
     type: "media",
   },
   async (message, conn) => {

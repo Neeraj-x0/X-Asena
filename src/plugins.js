@@ -19,6 +19,8 @@ class CommandBuilder {
       patternName: null,
       fromMe: false,
       desc: "",
+      usage: "",
+      params: null,
       type: "misc",
       groupOnly: false,
       adminOnly: false,
@@ -26,6 +28,16 @@ class CommandBuilder {
       dontAddCommandList: false,
       function: null,
     };
+  }
+
+  setUsage(usage) {
+    this.config.usage = usage;
+    return this;
+  }
+
+  setParams(params) {
+    this.config.params = params;
+    return this;
   }
 
   setPattern(pattern) {
@@ -99,6 +111,12 @@ export const command = (commandInfo, func) => {
   }
   if (commandInfo.desc) {
     builder.setDescription(commandInfo.desc);
+  }
+  if (commandInfo.usage) {
+    builder.setUsage(commandInfo.usage);
+  }
+  if (commandInfo.params || commandInfo.agentParams) {
+    builder.setParams(commandInfo.params || commandInfo.agentParams);
   }
   if (commandInfo.type) {
     builder.setType(commandInfo.type);

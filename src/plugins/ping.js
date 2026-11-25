@@ -10,6 +10,8 @@ command(
     pattern: "ping",
     fromMe: false,
     desc: "Check bot response time",
+    usage: "#ping",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "Measures round-trip latency in milliseconds." },
     type: "info",
   },
   async (message, conn) => {

@@ -647,13 +647,18 @@ export const AGENT_TOOLS = [
     type: "function",
     function: {
       name: "list_bot_commands",
-      description: "List all built-in bot plugin commands available across all categories (admin, group, download, tools, sticker, utility, social, etc.).",
+      description:
+        "List all built-in bot plugin commands with their exact input format, usage, required parameters, and permission requirements. Always inspect a command's params before calling execute_bot_command if unsure of its argument format.",
       parameters: {
         type: "object",
         properties: {
           category: {
             type: "string",
-            description: "Optional category filter (e.g. 'admin', 'group', 'download', 'tools', 'sticker', 'utility', 'owner')",
+            description: "Optional category filter (e.g. 'admin', 'group', 'downloader', 'tools', 'media', 'security', 'chats', 'owner')",
+          },
+          search: {
+            type: "string",
+            description: "Optional keyword to filter commands by name or description (e.g. 'sticker', 'mute', 'yt')",
           },
         },
         required: [],
@@ -1630,7 +1635,7 @@ export async function executeAgentTool(name, args, context) {
       }
       if (!cmd) {
         return {
-          error: `Bot command "${cleanName}" not found. Call list_bot_commands to see available plugin commands.`,
+          error: `Bot command "${cleanName}" not found. Call list_bot_commands to see available plugin commands and their parameter schemas.`,
         };
       }
 
@@ -1642,6 +1647,24 @@ export async function executeAgentTool(name, args, context) {
       }
       if (cmd.groupOnly && !isGroup) {
         return { error: `Command "${cleanName}" can only be run in a group.` };
+      }
+
+      // Validate required arguments if defined in plugin params helper
+      if (cmd.params?.argsRequired && !(cmdArgs && String(cmdArgs).trim())) {
+        return {
+          error: `MISSING ARGUMENTS for "${cleanName}".`,
+          expectedUsage: cmd.usage || `${BOT_INFO.PREFIX}${cleanName}`,
+          paramsSchema: cmd.params,
+        };
+      }
+
+      // Validate required quoted message if plugin strictly requires quoted media/message
+      if (cmd.params?.requiresQuoted === true && !message.quoted) {
+        return {
+          error: `MISSING QUOTED MESSAGE for "${cleanName}".`,
+          expectedUsage: cmd.usage || `${BOT_INFO.PREFIX}${cleanName}`,
+          paramsSchema: cmd.params,
+        };
       }
 
       const fullBody = `${BOT_INFO.PREFIX}${cleanName} ${cmdArgs || ""}`.trim();
@@ -1667,17 +1690,35 @@ export async function executeAgentTool(name, args, context) {
     try {
       const { getCommands, getCommandsByType } = await import("../plugins.js");
       const category = args.category ? String(args.category).toLowerCase().trim() : null;
-      const cmds = category ? getCommandsByType(category) : getCommands();
-      const summary = cmds
-        .filter((c) => c.patternName && !c.dontAddCommandList)
-        .map((c) => ({
-          name: c.patternName,
-          type: c.type || "misc",
-          desc: c.desc || "No description",
-          adminOnly: Boolean(c.adminOnly),
-          groupOnly: Boolean(c.groupOnly),
-        }));
-      return { total: summary.length, category: category || "all", commands: summary };
+      const search = args.search ? String(args.search).toLowerCase().trim() : null;
+      let cmds = category ? getCommandsByType(category) : getCommands();
+      cmds = cmds.filter((c) => c.patternName && !c.dontAddCommandList);
+
+      if (search) {
+        cmds = cmds.filter(
+          (c) =>
+            c.patternName.toLowerCase().includes(search) ||
+            (c.desc && c.desc.toLowerCase().includes(search)) ||
+            (c.usage && c.usage.toLowerCase().includes(search))
+        );
+      }
+
+      const summary = cmds.map((c) => ({
+        name: c.patternName,
+        type: c.type || "misc",
+        desc: c.desc || "No description",
+        usage: c.usage || `${BOT_INFO.PREFIX}${c.patternName}`,
+        params: c.params || {
+          format: "",
+          argsRequired: false,
+          requiresQuoted: false,
+          description: c.desc || "No arguments required",
+        },
+        adminOnly: Boolean(c.adminOnly),
+        groupOnly: Boolean(c.groupOnly),
+        botAdminRequired: Boolean(c.botAdminRequired),
+      }));
+      return { total: summary.length, category: category || "all", search: search || null, commands: summary };
     } catch (err) {
       return { error: err?.message || err };
     }
@@ -2251,8 +2292,9 @@ export async function runAgentPrompt({ prompt, message, conn }) {
     `    • An LID is an internal WhatsApp privacy identity, NOT a phone number. NEVER append @s.whatsapp.net to LID digits.\n` +
     `    • When sending direct messages, you can target phone numbers, pass 'caller', or pass the raw LID if the phone number is hidden.\n` +
     `19. Universal Bot Command & Plugin Dispatch:\n` +
-    `    • You can execute ANY registered bot command or plugin (e.g. 'ytdl', 'ping', 'runtime', 'antilink', 'welcome', 'qr', 'trt', 'weather', 'status', etc.) with arguments using 'execute_bot_command'.\n` +
-    `    • Explore all bot plugin capabilities using 'list_bot_commands'. NEVER say you cannot do a task if a command or plugin can fulfill it!\n` +
+    `    • You can execute ANY registered bot command or plugin using 'execute_bot_command'.\n` +
+    `    • Call 'list_bot_commands' (with optional 'category' or 'search') to inspect each command's exact parameter definition ('usage', 'params.format', 'params.argsRequired', 'params.requiresQuoted', 'params.examples') before calling 'execute_bot_command'.\n` +
+    `    • NEVER say you cannot do a task if a command or plugin can fulfill it!\n` +
     `20. Real-Time Event Automations & Watchers:\n` +
     `    • Monitor real-time group events (member leave/join, promotion/demotion, keywords, links, profanities, media) with 'watch_group_event'.\n` +
     `    • When triggered, it executes your defined action/prompt autonomously and can auto-cancel linked tasks.\n` +

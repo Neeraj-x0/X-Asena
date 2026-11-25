@@ -231,6 +231,8 @@ command(
     pattern: "ig",
     fromMe: false,
     desc: "Download Instagram media (best-effort)",
+    usage: "#ig <instagram_post_or_reel_url>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<instagram_url>", description: "Public Instagram Reel, Post, or Carousel URL." },
     type: "downloader",
   },
   igHandler
@@ -283,6 +285,8 @@ command(
     pattern: "tiktok",
     fromMe: false,
     desc: "Download TikTok video (best-effort)",
+    usage: "#tiktok <tiktok_video_url>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<tiktok_url>", description: "TikTok video URL to download without watermark." },
     type: "downloader",
   },
   ttHandler
@@ -304,6 +308,8 @@ command(
     pattern: "fb",
     fromMe: false,
     desc: "Download Facebook media (best-effort)",
+    usage: "#fb <facebook_video_url>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<facebook_url>", description: "Public Facebook video or reel URL." },
     type: "downloader",
   },
   async (message, conn) => {

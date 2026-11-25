@@ -15,6 +15,8 @@ command(
     pattern: "privacy",
     fromMe: true,
     desc: "Inspect or configure WhatsApp privacy settings",
+    usage: "#privacy [status|lastseen|online|profile|readreceipts|groupadd|calls] [value]",
+    params: { argsRequired: false, requiresQuoted: false, format: "[<setting> <value>]", description: "Inspect privacy settings or pass setting+value (e.g. 'lastseen contacts', 'online all', 'readreceipts none')." },
     type: "security",
   },
   async (message, conn) => {

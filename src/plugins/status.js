@@ -19,6 +19,8 @@ command(
     pattern: "save",
     fromMe: false,
     desc: "Save and download a contact's status to your PM",
+    usage: "#save (reply to a contact status)",
+    params: { argsRequired: false, requiresQuoted: true, format: "", description: "Reply to a status update to save/forward media to your PM." },
     type: "status",
   },
   async (message, conn) => {
@@ -112,6 +114,8 @@ command(
     pattern: "poststatus",
     fromMe: true,
     desc: "Post text or media to bot's WhatsApp Status",
+    usage: "#poststatus <status_text> (or reply to image/video with optional caption)",
+    params: { argsRequired: false, requiresQuoted: "optional", format: "[text]", description: "Broadcast text status or quoted media to WhatsApp Status." },
     type: "status",
   },
   async (message, conn) => {
@@ -186,6 +190,8 @@ command(
     pattern: "autostatus",
     fromMe: true,
     desc: "Configure auto-reading or auto-reacting to contact statuses",
+    usage: "#autostatus [view|react|off|status]",
+    params: { argsRequired: false, requiresQuoted: false, format: "[view|react|off|status]", description: "Enable auto-viewing or auto-reacting to WhatsApp Status updates." },
     type: "status",
   },
   async (message, conn) => {

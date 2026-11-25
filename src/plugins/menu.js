@@ -125,6 +125,8 @@ command(
     pattern: "menu",
     fromMe: false,
     desc: "Show all commands or filter by category",
+    usage: "#menu [category]",
+    params: { argsRequired: false, requiresQuoted: false, format: "[category]", description: "Show interactive menu or filter by category name (e.g. 'admin', 'tools', 'media')." },
     type: "info",
   },
   sendMenu
@@ -171,14 +173,26 @@ command(
 
     const meta = CATEGORY_META[hit.type] || { title: hit.type?.toUpperCase() || "MISC", icon: "📌" };
 
-    await reply(
-      conn,
-      message,
+    let details =
       `*${BOT_INFO.PREFIX}${hit.patternName}*\n` +
-        `${hit.desc || "_No description_"}\n\n` +
-        `• *Category:* ${meta.icon} ${meta.title}\n` +
-        `• *Scope:* ${hit.groupOnly ? "Group Only" : "All Chats"}\n` +
-        `• *Permission:* ${hit.fromMe ? "Bot Owner" : hit.adminOnly ? "Group Admin" : "Everyone"}`
-    );
+      `${hit.desc || "_No description_"}\n\n` +
+      `• *Category:* ${meta.icon} ${meta.title}\n` +
+      `• *Scope:* ${hit.groupOnly ? "Group Only" : "All Chats"}\n` +
+      `• *Permission:* ${hit.fromMe ? "Bot Owner" : hit.adminOnly ? "Group Admin" : "Everyone"}`;
+
+    if (hit.usage) {
+      details += `\n• *Usage:* \`${hit.usage}\``;
+    }
+    if (hit.params?.format) {
+      details += `\n• *Input Format:* \`${hit.params.format}\``;
+    }
+    if (hit.params?.requiresQuoted) {
+      details += `\n• *Reply Required:* ${hit.params.requiresQuoted === true ? "Yes" : "Optional"}`;
+    }
+    if (hit.params?.examples?.length) {
+      details += `\n• *Examples:* \`${hit.params.examples.join("`, `")}\``;
+    }
+
+    await reply(conn, message, details);
   }
 );

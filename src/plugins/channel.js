@@ -16,6 +16,14 @@ command(
     pattern: "channel",
     fromMe: true,
     desc: "WhatsApp Channel management (create|info|follow|unfollow|mute|unmute|post)",
+    usage: "#channel <create|info|follow|unfollow|mute|unmute|post> <args>",
+    params: {
+      argsRequired: true,
+      requiresQuoted: false,
+      format: "<create Name | Desc | info <JID|code> | follow <JID> | unfollow <JID> | mute <JID> | unmute <JID> | post <JID> <message>>",
+      description: "Manage WhatsApp Channels/Newsletters.",
+      examples: ["create Tech News | Daily updates", "info 120363...@newsletter", "post 120363...@newsletter Hello subscribers!"],
+    },
     type: "social",
   },
   async (message, conn) => {

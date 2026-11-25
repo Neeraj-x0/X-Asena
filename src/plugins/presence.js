@@ -17,6 +17,8 @@ command(
     pattern: "online",
     fromMe: true,
     desc: "Set bot presence to Online (Available)",
+    usage: "#online",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "Sets WhatsApp presence status to Available." },
     type: "presence",
   },
   async (message, conn) => {
@@ -39,6 +41,8 @@ command(
     pattern: "offline",
     fromMe: true,
     desc: "Set bot presence to Offline (Unavailable)",
+    usage: "#offline",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "Sets WhatsApp presence status to Unavailable." },
     type: "presence",
   },
   async (message, conn) => {
@@ -61,6 +65,8 @@ command(
     pattern: "typing",
     fromMe: false,
     desc: "Simulate typing indicator in current chat for 5 seconds",
+    usage: "#typing",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "Triggers composing presence in chat for 5 seconds." },
     type: "presence",
   },
   async (message, conn) => {
@@ -82,6 +88,8 @@ command(
     pattern: "recording",
     fromMe: false,
     desc: "Simulate audio recording indicator in current chat for 5 seconds",
+    usage: "#recording",
+    params: { argsRequired: false, requiresQuoted: false, format: "", description: "Triggers recording presence indicator in chat for 5 seconds." },
     type: "presence",
   },
   async (message, conn) => {
@@ -103,6 +111,8 @@ command(
     pattern: "autotyping",
     fromMe: true,
     desc: "Toggle automatic typing presence before command responses (on|off)",
+    usage: "#autotyping [on|off]",
+    params: { argsRequired: false, requiresQuoted: false, format: "[on|off]", description: "Toggle or check auto-typing presence indicator before replies." },
     type: "presence",
   },
   async (message, conn) => {

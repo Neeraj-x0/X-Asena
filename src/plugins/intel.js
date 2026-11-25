@@ -22,6 +22,8 @@ command(
     pattern: "checkwa",
     fromMe: false,
     desc: "Check if a phone number is registered on WhatsApp",
+    usage: "#checkwa <phone_number>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<phone_number>", description: "International phone number without '+' to verify WhatsApp registration." },
     type: "tools",
   },
   async (message, conn) => {
@@ -84,6 +86,8 @@ command(
     pattern: "whois",
     fromMe: false,
     desc: "Fetch user profile photo, bio, and account details",
+    usage: "#whois <@user|phone_number>",
+    params: { argsRequired: false, requiresQuoted: "optional", format: "<@user|phone_number>", description: "Target user mention, reply, or phone number." },
     type: "tools",
   },
   async (message, conn) => {
@@ -154,6 +158,8 @@ command(
     pattern: "getbio",
     fromMe: false,
     desc: "Fetch user's WhatsApp About / Status",
+    usage: "#getbio <@user|phone_number>",
+    params: { argsRequired: false, requiresQuoted: "optional", format: "<@user|phone_number>", description: "Target user mention, reply, or phone number." },
     type: "tools",
   },
   async (message, conn) => {
@@ -190,6 +196,8 @@ command(
     pattern: "inspect",
     fromMe: false,
     desc: "Inspect a group invite link without joining",
+    usage: "#inspect <whatsapp_invite_url_or_code>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<invite_url_or_code>", description: "WhatsApp group invite link or code to preview metadata." },
     type: "tools",
   },
   async (message, conn) => {
@@ -235,6 +243,8 @@ command(
     pattern: "join",
     fromMe: true,
     desc: "Join a group using an invite link",
+    usage: "#join <whatsapp_invite_url_or_code>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<invite_url_or_code>", description: "WhatsApp group invite link or code for the bot to join." },
     type: "tools",
   },
   async (message, conn) => {

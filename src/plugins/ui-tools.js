@@ -22,6 +22,8 @@ command(
     pattern: "pin",
     fromMe: false,
     desc: "Pin or unpin a quoted message (24h, 7d, 30d, unpin)",
+    usage: "#pin [24h|7d|30d|unpin] (reply to message)",
+    params: { argsRequired: false, requiresQuoted: true, format: "[24h|7d|30d|unpin]", description: "Pin the quoted message in chat for duration or pass 'unpin'." },
     type: "chats",
   },
   async (message, conn) => {
@@ -80,6 +82,8 @@ command(
     pattern: "edit",
     fromMe: true,
     desc: "Edit a previously sent message from the bot",
+    usage: "#edit <new_text> (reply to bot's message)",
+    params: { argsRequired: true, requiresQuoted: true, format: "<new_text>", description: "Edit text of a previously sent bot message." },
     type: "chats",
   },
   async (message, conn) => {
@@ -121,6 +125,8 @@ command(
     pattern: "vcard",
     fromMe: false,
     desc: "Send a WhatsApp contact card (Name | Number or mention)",
+    usage: "#vcard <Name> | <Phone_Number>",
+    params: { argsRequired: true, requiresQuoted: false, format: "<Name> | <Number>", description: "Create and send a vCard contact card." },
     type: "tools",
   },
   async (message, conn) => {
@@ -194,6 +200,8 @@ command(
     pattern: "loc",
     fromMe: false,
     desc: "Share a location pin (latitude,longitude [Place Name])",
+    usage: "#loc <latitude>,<longitude> [Place Name]",
+    params: { argsRequired: true, requiresQuoted: false, format: "<lat>,<lon> [name]", description: "Send an interactive map pin at coordinates (e.g. '40.7128,-74.0060 New York')." },
     type: "tools",
   },
   async (message, conn) => {

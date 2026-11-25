@@ -239,6 +239,16 @@ export async function useBetterSqliteAuthState(dbPath) {
     hasCreds,
     purgeSession,
     botKv,
-    close: () => db.close(),
+    close: async () => {
+      await writeChain.catch(() => {});
+      if (db.open) {
+        try {
+          db.pragma("wal_checkpoint(TRUNCATE)");
+        } catch {
+          /* ignore checkpoint errors during shutdown */
+        }
+        db.close();
+      }
+    },
   };
 }

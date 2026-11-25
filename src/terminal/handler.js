@@ -3,14 +3,31 @@
  * Shortcuts: Q logout, R restart, A wipe auth DB
  */
 
-import { clearAuthState } from "../database/authState.js";
+import { clearAuthState, closeAuthState } from "../database/authState.js";
 import config from "../../config.js";
 import fs from "fs/promises";
 
 let connection = null;
+let awaitingWipeConfirm = false;
 
 export function setConnection(conn) {
   connection = conn;
+}
+
+async function unlinkWithRetry(filePath, retries = 5, delayMs = 150) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await fs.unlink(filePath);
+      return;
+    } catch (err) {
+      if (err.code === "ENOENT") return;
+      if ((err.code === "EBUSY" || err.code === "EPERM") && i < retries - 1) {
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 async function logout() {
@@ -27,6 +44,7 @@ async function logout() {
     }
 
     await clearAuthState();
+    await closeAuthState();
     console.log("✅ Auth state cleared");
     console.log("✅ Logout complete!\n");
     process.exit(0);
@@ -49,6 +67,7 @@ async function restart() {
       }
     }
     console.log("✅ Restart initiated...\n");
+    await closeAuthState();
     process.exit(0);
   } catch (error) {
     console.error("❌ Error during restart:", error);
@@ -60,18 +79,24 @@ async function wipeDatabase() {
   console.log("\n⚠️  DATABASE WIPE INITIATED");
 
   try {
+    // Stop live WhatsApp socket first so no concurrent creds.update writes happen
+    if (connection) {
+      try {
+        await connection.end();
+      } catch {
+        /* ignore socket end errors */
+      }
+      connection = null;
+    }
+
     await clearAuthState();
+    await closeAuthState();
 
     if (!config.USE_POSTGRES && config.SQLITE_PATH) {
-      try {
-        await fs.unlink(config.SQLITE_PATH);
-        // Also remove WAL sidecars if present
-        await fs.unlink(`${config.SQLITE_PATH}-wal`).catch(() => {});
-        await fs.unlink(`${config.SQLITE_PATH}-shm`).catch(() => {});
-        console.log(`✅ Removed ${config.SQLITE_PATH}`);
-      } catch (err) {
-        if (err.code !== "ENOENT") throw err;
-      }
+      await unlinkWithRetry(config.SQLITE_PATH);
+      await unlinkWithRetry(`${config.SQLITE_PATH}-wal`).catch(() => {});
+      await unlinkWithRetry(`${config.SQLITE_PATH}-shm`).catch(() => {});
+      console.log(`✅ Removed ${config.SQLITE_PATH}`);
     }
 
     console.log("✅ Database wiped successfully!\n");
@@ -97,24 +122,27 @@ export function initTerminalHandler() {
 
   process.stdin.on("data", async (data) => {
     const input = data.toString().trim().toUpperCase();
+    if (!input) return;
+
+    if (awaitingWipeConfirm) {
+      awaitingWipeConfirm = false;
+      if (input === "Y" || input === "YES") {
+        await wipeDatabase();
+      } else {
+        console.log("❌ Database wipe cancelled.\n");
+      }
+      return;
+    }
 
     if (input === "Q") {
       await logout();
     } else if (input === "R") {
       await restart();
     } else if (input === "A") {
+      awaitingWipeConfirm = true;
       console.log("\n⚠️  WARNING: This will DELETE ALL AUTH DATABASE DATA!");
       console.log("⚠️  Type 'Y' and press Enter to confirm: ");
-
-      process.stdin.once("data", async (confirmData) => {
-        const confirm = confirmData.toString().trim().toUpperCase();
-        if (confirm === "Y") {
-          await wipeDatabase();
-        } else {
-          console.log("❌ Database wipe cancelled.\n");
-        }
-      });
-    } else if (input.length > 0) {
+    } else {
       console.log(`⚠️  Unknown command: "${input}". Valid: Q, R, A`);
     }
   });
@@ -128,6 +156,7 @@ export function initTerminalHandler() {
         /* ignore */
       }
     }
+    await closeAuthState();
     process.exit(0);
   });
 }

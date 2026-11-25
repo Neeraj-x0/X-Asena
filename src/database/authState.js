@@ -63,6 +63,23 @@ export async function clearAuthState() {
 }
 
 /**
+ * Flush pending writes and close the active auth database handle
+ */
+export async function closeAuthState() {
+  try {
+    if (initPromise) {
+      await initPromise.catch(() => {});
+    }
+    if (typeof activeBackend?.close === "function") {
+      await activeBackend.close();
+    }
+  } finally {
+    activeBackend = null;
+    initPromise = null;
+  }
+}
+
+/**
  * Cheap creds existence check (no full table scan)
  */
 export async function checkAuthCreds() {

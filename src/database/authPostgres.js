@@ -266,6 +266,51 @@ export async function usePostgresAuthState(sequelize) {
 
     AuthStateDB,
 
+    flush: async () => writeMutex.runExclusive(async () => {}),
+
+    getStats: async () => {
+      try {
+        const rows = await AuthStateDB.findAll({ attributes: ["key"], raw: true });
+        const kvCount = await BotKVDB.count();
+        let sessions = 0;
+        let preKeys = 0;
+        let senderKeys = 0;
+        let appStateSyncKeys = 0;
+        let other = 0;
+        let hasCredsKey = false;
+
+        for (const r of rows) {
+          const k = r.key || "";
+          if (k === "creds.json") hasCredsKey = true;
+          else if (k.startsWith("session-")) sessions++;
+          else if (k.startsWith("pre-key-")) preKeys++;
+          else if (k.startsWith("sender-key-")) senderKeys++;
+          else if (k.startsWith("app-state-sync-")) appStateSyncKeys++;
+          else other++;
+        }
+
+        return {
+          backend: "postgres",
+          registered: Boolean(creds?.registered),
+          hasCreds: hasCredsKey,
+          sessions,
+          preKeys,
+          senderKeys,
+          appStateSyncKeys,
+          other,
+          totalAuthKeys: rows.length,
+          botKvKeys: kvCount,
+        };
+      } catch {
+        return null;
+      }
+    },
+
+    close: async () => {
+      await writeMutex.runExclusive(async () => {});
+      await sequelize.close();
+    },
+
     botKv: {
       async get(key) {
         try {

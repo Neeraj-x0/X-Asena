@@ -147,16 +147,20 @@ export function initTerminalHandler() {
     }
   });
 
-  process.on("SIGINT", async () => {
-    console.log("\n👋 Shutting down...");
+  const gracefulShutdown = async (signal) => {
+    console.log(`\n👋 Shutting down (${signal})...`);
     if (connection) {
       try {
         await connection.end();
       } catch {
         /* ignore */
       }
+      connection = null;
     }
     await closeAuthState();
     process.exit(0);
-  });
+  };
+
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 }

@@ -232,12 +232,126 @@ export async function useBetterSqliteAuthState(dbPath) {
     }
   };
 
+  const flush = async () => {
+    await writeChain.catch(() => {});
+    if (db.open) {
+      try {
+        db.pragma("wal_checkpoint(PASSIVE)");
+      } catch {
+        /* ignore checkpoint errors */
+      }
+    }
+  };
+
+  const getStats = () => {
+    try {
+      const rows = db.prepare("SELECT key FROM AuthState").all();
+      const kvCountRow = db.prepare("SELECT COUNT(*) AS cnt FROM BotKV").get();
+      let sessions = 0;
+      let preKeys = 0;
+      let senderKeys = 0;
+      let appStateSyncKeys = 0;
+      let other = 0;
+      let hasCredsKey = false;
+
+      for (const r of rows) {
+        const k = r.key || "";
+        if (k === "creds.json") hasCredsKey = true;
+        else if (k.startsWith("session-")) sessions++;
+        else if (k.startsWith("pre-key-")) preKeys++;
+        else if (k.startsWith("sender-key-")) senderKeys++;
+        else if (k.startsWith("app-state-sync-")) appStateSyncKeys++;
+        else other++;
+      }
+
+      return {
+        backend: "sqlite",
+        registered: Boolean(creds?.registered),
+        hasCreds: hasCredsKey,
+        sessions,
+        preKeys,
+        senderKeys,
+        appStateSyncKeys,
+        other,
+        totalAuthKeys: rows.length,
+        botKvKeys: kvCountRow?.cnt || 0,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  /**
+   * Safely trim excess closed Signal sub-sessions inside session-*.json records
+   * without touching open (-1) sessions, creds, or pre-keys.
+   */
+  const pruneStaleSessions = async ({ maxClosedPerJid = 5 } = {}) => {
+    return enqueueWrite(async () => {
+      let prunedEntries = 0;
+      try {
+        const rows = db
+          .prepare("SELECT key, value FROM AuthState WHERE key LIKE 'session-%'")
+          .all();
+
+        const updateMany = db.transaction((updates) => {
+          for (const u of updates) {
+            stmtUpsert.run(u.key, u.value);
+          }
+        });
+
+        const updates = [];
+        for (const row of rows) {
+          if (!row?.value) continue;
+          try {
+            const parsed = JSON.parse(row.value, BufferJSON.reviver);
+            const map = parsed?._sessions;
+            if (!map || typeof map !== "object") continue;
+
+            const closedKeys = [];
+            for (const [baseKey, entry] of Object.entries(map)) {
+              const closedAt = entry?.indexInfo?.closed;
+              if (typeof closedAt === "number" && closedAt > 0) {
+                closedKeys.push({ baseKey, closedAt });
+              }
+            }
+
+            if (closedKeys.length > maxClosedPerJid) {
+              // Keep newest closed entries up to maxClosedPerJid, drop oldest
+              closedKeys.sort((a, b) => b.closedAt - a.closedAt);
+              const toDrop = closedKeys.slice(maxClosedPerJid);
+              for (const item of toDrop) {
+                delete map[item.baseKey];
+                prunedEntries++;
+              }
+              updates.push({
+                key: row.key,
+                value: JSON.stringify(parsed, BufferJSON.replacer),
+              });
+            }
+          } catch {
+            /* skip malformed entry */
+          }
+        }
+
+        if (updates.length) {
+          updateMany(updates);
+        }
+      } catch (err) {
+        console.error("[auth-sqlite] pruneStaleSessions error:", err?.message || err);
+      }
+      return prunedEntries;
+    });
+  };
+
   return {
     state,
     saveCreds,
     clearAuthState,
     hasCreds,
     purgeSession,
+    flush,
+    getStats,
+    pruneStaleSessions,
     botKv,
     close: async () => {
       await writeChain.catch(() => {});

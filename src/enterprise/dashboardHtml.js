@@ -818,12 +818,20 @@ export function renderDashboardHtml() {
       }
 
       const sb = document.getElementById("sessionBody");
+      const aStat = ov.authStats;
+      const statsHtml = aStat
+        ? '<div class="list-item"><div class="mono muted">Signal DB (' + esc(aStat.backend) + '): ' +
+            aStat.sessions + ' sessions • ' + aStat.preKeys + ' prekeys • ' +
+            aStat.senderKeys + ' sender-keys • ' + (s.sessionRotations || 0) + ' rotations' +
+            '</div><button class="btn btn-sm" onclick="apiAction(\\'/api/auth/prune\\', {})">Prune Old Ratchets</button></div>'
+        : '';
+
       if (s.connected) {
         sb.innerHTML =
           '<div class="list-item"><div><div style="font-weight:600;">' + esc(s.user?.name || "X-Asena Bot") + '</div>' +
           '<div class="mono muted">PN JID: ' + esc(s.user?.id || "N/A") + '</div>' +
           (s.user?.lid ? '<div class="mono muted">LID: ' + esc(s.user.lid) + '</div>' : '') +
-          '</div><span class="badge badge-green">LINKED</span></div>';
+          '</div><span class="badge badge-green">LINKED</span></div>' + statsHtml;
       } else {
         let html = '<div class="muted">WhatsApp socket status: <strong>' + esc(s.status) + '</strong></div>';
         if (ov.qrSvg) {
@@ -834,7 +842,7 @@ export function renderDashboardHtml() {
         }
         html += '<div class="row" style="margin-top:8px;">' +
           '<input id="pairNumInput" placeholder="Phone with country code (e.g. 919876543210)" style="flex:1;" />' +
-          '<button class="btn btn-sm btn-primary" onclick="requestPairing()">Get Pairing Code</button></div>';
+          '<button class="btn btn-sm btn-primary" onclick="requestPairing()">Get Pairing Code</button></div>' + statsHtml;
         sb.innerHTML = html;
       }
 

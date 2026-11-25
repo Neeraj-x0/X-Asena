@@ -207,6 +207,9 @@ export function startAdminHttp() {
           }
         }
 
+        const { getAuthStateStats } = await import("../database/authState.js");
+        const authStats = await getAuthStateStats().catch(() => null);
+
         return json(res, 200, {
           name: BOT_INFO.NAME,
           version: BOT_INFO.VERSION,
@@ -216,6 +219,7 @@ export function startAdminHttp() {
           setup: await isSetupDone(),
           logGroup: await getLogGroupJid(),
           connection: cs,
+          authStats,
           qrSvg: cs.qr ? qrToSvg(cs.qr) : null,
           groupCount,
           metrics: getMetricsSnapshot(),
@@ -225,6 +229,16 @@ export function startAdminHttp() {
             heapUsed: Math.round(mem.heapUsed / 1048576),
           },
           recentMessages: getRecentMessages(30),
+        });
+      }
+
+      if (method === "POST" && path === "/api/auth/prune") {
+        const { pruneStaleSessions } = await import("../database/authState.js");
+        const pruned = await pruneStaleSessions({ maxClosedPerJid: 5 });
+        return json(res, 200, {
+          success: true,
+          pruned,
+          message: `Pruned ${pruned} closed Signal session entries`,
         });
       }
 

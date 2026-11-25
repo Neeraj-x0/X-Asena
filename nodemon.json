@@ -1,0 +1,16 @@
+{
+  "watch": ["index.js", "config.js", "src/"],
+  "ext": "js,json",
+  "ignore": [
+    "database.db*",
+    "*.db*",
+    "backups/*",
+    "logs/*",
+    "sessions/*",
+    "node_modules/*",
+    ".git/*",
+    "temp_*",
+    "*.log"
+  ],
+  "delay": "1000"
+}

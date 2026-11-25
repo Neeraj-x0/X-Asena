@@ -111,7 +111,43 @@ export async function validateAuthState() {
 }
 
 export async function getAuthStateStats() {
+  if (!initPromise) {
+    await useMultiDbAuthState();
+  }
+  const backend = await initPromise;
+  if (typeof backend?.getStats === "function") {
+    return await backend.getStats();
+  }
   return null;
+}
+
+/**
+ * Flush queued auth writes to disk/DB without closing handles
+ */
+export async function flushAuthState() {
+  try {
+    if (!initPromise) return;
+    const backend = await initPromise.catch(() => null);
+    if (typeof backend?.flush === "function") {
+      await backend.flush();
+    }
+  } catch {
+    /* ignore flush errors */
+  }
+}
+
+/**
+ * Safely prune excess closed Signal sub-sessions while preserving active ratchets
+ */
+export async function pruneStaleSessions(opts = {}) {
+  if (!initPromise) {
+    await useMultiDbAuthState();
+  }
+  const backend = await initPromise;
+  if (typeof backend?.pruneStaleSessions === "function") {
+    return await backend.pruneStaleSessions(opts);
+  }
+  return 0;
 }
 
 /**

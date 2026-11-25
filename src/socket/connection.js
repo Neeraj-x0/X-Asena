@@ -11,7 +11,7 @@ import makeWASocket, {
 } from "baileys";
 import pino from "pino";
 import qrcode from "qrcode-terminal";
-import { useMultiDbAuthState } from "../database/authState.js";
+import { useMultiDbAuthState, flushAuthState } from "../database/authState.js";
 import { serialize } from "../messages/serialize.js";
 import { messageHandler } from "../messages/handler.js";
 import { setConnection } from "../terminal/handler.js";
@@ -26,10 +26,44 @@ import { processGroupGuards } from "../messages/groupGuards.js";
 
 const logger = pino({ level: process.env.BAILEYS_LOG_LEVEL || "silent" });
 
-// Install Bad MAC automatic self-healing listener
+let sessionRotations = 0;
+
+// Install Signal noise suppressor & Bad MAC automatic self-healing listener
 if (!globalThis.__badMacHealerInstalled) {
   globalThis.__badMacHealerInstalled = true;
   const originalConsoleError = console.error;
+  const originalConsoleInfo = console.info;
+  const originalConsoleWarn = console.warn;
+
+  const isSignalSessionNoise = (args) => {
+    if (process.env.SIGNAL_DEBUG === "1") return false;
+    const first = String(args?.[0] || "");
+    if (
+      first.includes("Closing open session in favor of incoming prekey bundle") ||
+      first.startsWith("Closing session:") ||
+      first.startsWith("Removing old closed session:") ||
+      first.includes("Decrypted message with closed session") ||
+      first.includes("Session already closed") ||
+      first.includes("Session already open")
+    ) {
+      if (first.includes("Closing open session")) {
+        sessionRotations += 1;
+      }
+      return true;
+    }
+    return false;
+  };
+
+  console.info = function (...args) {
+    if (isSignalSessionNoise(args)) return;
+    return originalConsoleInfo.apply(console, args);
+  };
+
+  console.warn = function (...args) {
+    if (isSignalSessionNoise(args)) return;
+    return originalConsoleWarn.apply(console, args);
+  };
+
   console.error = function (...args) {
     const text = args.map((a) => String(a?.stack || a || "")).join(" ");
     if (text.includes("Bad MAC")) {
@@ -261,6 +295,7 @@ async function connect() {
         lastDisconnectReason = statusCode ?? "closed";
 
         stopReminderScheduler();
+        await flushAuthState();
         cleanupSocket(conn);
         if (globalConnection === conn) {
           globalConnection = null;
@@ -370,6 +405,7 @@ export function getConnectionState() {
     pairingCode: connected ? null : latestPairingCode,
     reconnectAttempt,
     lastDisconnectReason,
+    sessionRotations,
   };
 }
 

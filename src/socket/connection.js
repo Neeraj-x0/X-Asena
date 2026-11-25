@@ -99,6 +99,8 @@ let latestPairingCode = null;
 let lastDisconnectReason = null;
 let startupPruned = false;
 let maintenanceInterval = null;
+let reconnectTimer = null;
+let isShuttingDown = false;
 const signalKeyCache = createTtlCache({ ttlMs: 3 * 60 * 1000, max: 300 });
 const recentMessages = [];
 const MAX_RECENT_MESSAGES = 100;
@@ -312,8 +314,10 @@ async function connect() {
 
       if (connection === "close") {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        connectionStatus = "close";
+        const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+        const isReplaced = statusCode === DisconnectReason.connectionReplaced;
+        const shouldReconnect = !isShuttingDown && !isLoggedOut && !isReplaced;
+        connectionStatus = isReplaced ? "replaced" : "close";
         lastDisconnectReason = statusCode ?? "closed";
 
         stopReminderScheduler();
@@ -334,12 +338,22 @@ async function connect() {
             `❌ Connection closed (code ${statusCode ?? "?"}). Reconnecting in ${Math.round(delay / 1000)}s...`
           );
           isConnecting = false;
-          setTimeout(() => {
+          if (reconnectTimer) clearTimeout(reconnectTimer);
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            if (isShuttingDown) return;
             connect().catch((err) => {
               console.error("Reconnect failed:", err?.message || err);
               isConnecting = false;
             });
           }, delay);
+        } else if (isReplaced) {
+          console.warn(
+            "⚠️ Connection replaced (code 440) — another instance connected with this session. Stopping auto-reconnect to prevent conflict (ensure only 1 instance runs, or reconnect from Dashboard)."
+          );
+          isConnecting = false;
+        } else if (isShuttingDown) {
+          isConnecting = false;
         } else {
           console.log("🔓 Logged out. Restart the bot to login again.");
           isConnecting = false;
@@ -439,6 +453,11 @@ export function getRecentMessages(limit = 50) {
 }
 
 export async function forceReconnect() {
+  isShuttingDown = false;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   if (globalConnection) {
     cleanupSocket(globalConnection);
     globalConnection = null;
@@ -447,6 +466,30 @@ export async function forceReconnect() {
   isConnecting = false;
   connectionStatus = "connecting";
   return await connect();
+}
+
+export async function shutdownConnection() {
+  isShuttingDown = true;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  if (maintenanceInterval) {
+    clearInterval(maintenanceInterval);
+    maintenanceInterval = null;
+  }
+  stopReminderScheduler();
+  await import("../plugins/automute.js")
+    .then(({ stopAutoMuteScheduler }) => stopAutoMuteScheduler?.())
+    .catch(() => {});
+  if (globalConnection) {
+    cleanupSocket(globalConnection);
+    globalConnection = null;
+    setConnection(null);
+  }
+  isConnecting = false;
+  connectionStatus = "closed";
+  await flushAuthState().catch(() => {});
 }
 
 export default connect;

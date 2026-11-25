@@ -1,9 +1,9 @@
 import fs from "fs/promises";
 import path from "path";
-import connect from "./src/socket/connection.js";
+import connect, { shutdownConnection } from "./src/socket/connection.js";
 import { commands } from "./src/plugins.js";
 import { initTerminalHandler } from "./src/terminal/handler.js";
-import { useMultiDbAuthState, checkAuthCreds } from "./src/database/authState.js";
+import { useMultiDbAuthState, checkAuthCreds, closeAuthState } from "./src/database/authState.js";
 import config from "./config.js";
 
 global.__basedir = path.resolve();
@@ -82,6 +82,26 @@ if (!globalThis.__xasenaErrorGuards) {
   process.on("uncaughtExceptionMonitor", (err, origin) => {
     console.error(`[runtime] Uncaught Exception (${origin}):`, err?.stack || err?.message || err);
   });
+
+  let shuttingDown = false;
+  const gracefulShutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
+    const forceExit = setTimeout(() => process.exit(0), 5000);
+    forceExit.unref?.();
+    try {
+      await shutdownConnection();
+      const { stopAdminHttp } = await import("./src/enterprise/adminHttp.js");
+      stopAdminHttp();
+      await closeAuthState();
+    } catch {
+      /* ignore shutdown errors */
+    }
+    process.exit(0);
+  };
+  process.once("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.once("SIGINT", () => gracefulShutdown("SIGINT"));
 }
 
 initialize();

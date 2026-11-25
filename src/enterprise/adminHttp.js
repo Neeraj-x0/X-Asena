@@ -104,20 +104,27 @@ function requireConn(connState) {
 }
 
 export function startAdminHttp() {
-  const port = Number(process.env.ADMIN_HTTP_PORT || 0);
+  const hasPlatformPort = Boolean(process.env.PORT);
+  const port = Number(process.env.ADMIN_HTTP_PORT || process.env.PORT || 0);
   if (!port) {
-    logger.info?.("Admin HTTP disabled (set ADMIN_HTTP_PORT to enable)");
+    logger.info?.("Admin HTTP disabled (set ADMIN_HTTP_PORT or PORT to enable)");
     return null;
   }
 
-  const host = process.env.ADMIN_HTTP_HOST || "127.0.0.1";
+  const host = process.env.ADMIN_HTTP_HOST || (hasPlatformPort ? "0.0.0.0" : "127.0.0.1");
   const token = process.env.ADMIN_HTTP_TOKEN || "";
 
-  if (!token) {
+  if (!token && !hasPlatformPort) {
     console.warn(
       "[admin-http] ADMIN_HTTP_PORT set but ADMIN_HTTP_TOKEN missing — refusing to start"
     );
     return null;
+  }
+
+  if (!token && hasPlatformPort) {
+    console.warn(
+      "[admin-http] PORT set without ADMIN_HTTP_TOKEN — running in health-check-only mode (/health). Set ADMIN_HTTP_TOKEN to enable the dashboard & APIs."
+    );
   }
 
   server = http.createServer(async (req, res) => {
@@ -128,6 +135,20 @@ export function startAdminHttp() {
 
       // Dashboard HTML shell (handles auth gate via Bearer token in browser JS)
       if (method === "GET" && (path === "/" || path === "/dashboard")) {
+        if (!token) {
+          if (path === "/dashboard") {
+            return json(res, 503, {
+              error: "dashboard_disabled",
+              message: "Set ADMIN_HTTP_TOKEN to enable the dashboard.",
+            });
+          }
+          return json(res, 200, {
+            ok: true,
+            service: BOT_INFO.NAME,
+            version: BOT_INFO.VERSION,
+            healthOnly: true,
+          });
+        }
         const accept = req.headers.accept || "";
         // If explicit JSON client hits "/" without browser HTML accept, still serve JSON if ?format=json
         if (url.searchParams.get("format") === "json") {
@@ -143,21 +164,24 @@ export function startAdminHttp() {
         }
       }
 
-      // Open health probe
+      // Open health probe (always resilient during cold boot before DB init)
       if (method === "GET" && path === "/health") {
-        const ff = await checkFfmpeg();
+        const ff = await checkFfmpeg().catch(() => ({ ok: false }));
         const { getConnectionState } = await import("../socket/connection.js");
         const cs = getConnectionState();
+        const mode = await getMode().catch(() => "initializing");
+        const setup = await isSetupDone().catch(() => false);
+        const logGroup = Boolean(await getLogGroupJid().catch(() => null));
         return json(res, 200, {
           ok: true,
           name: BOT_INFO.NAME,
           version: BOT_INFO.VERSION,
           connected: cs.connected,
           status: cs.status,
-          mode: await getMode(),
+          mode,
           ffmpeg: ff.ok,
-          setup: await isSetupDone(),
-          logGroup: !!(await getLogGroupJid()),
+          setup,
+          logGroup,
           queue: queueStats(),
         });
       }
@@ -691,7 +715,11 @@ export function startAdminHttp() {
   });
 
   server.listen(port, host, () => {
-    console.log(`🛡 WhatsApp Operations Dashboard: http://${host}:${port}/?token=${token}`);
+    if (token) {
+      console.log(`🛡 WhatsApp Operations Dashboard: http://${host}:${port}/?token=${token}`);
+    } else {
+      console.log(`🩺 Health endpoint listening: http://${host}:${port}/health`);
+    }
   });
 
   return server;

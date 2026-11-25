@@ -47,13 +47,17 @@ async function retryOperation(operation, context = "") {
  */
 export async function createPostgresSequelize(databaseUrl) {
   const { Sequelize } = await import("sequelize");
+  const disableSsl = /[?&](sslmode=disable|ssl=false)\b/i.test(String(databaseUrl || ""));
   return new Sequelize(databaseUrl, {
     dialect: "postgres",
     protocol: "postgres",
     logging: false,
-    dialectOptions: {
-      ssl: { require: true, rejectUnauthorized: false },
-    },
+    pool: { max: 5, min: 0, idle: 10000, acquire: 30000 },
+    dialectOptions: disableSsl
+      ? {}
+      : {
+          ssl: { require: true, rejectUnauthorized: false },
+        },
   });
 }
 
@@ -70,7 +74,7 @@ export async function usePostgresAuthState(sequelize) {
         allowNull: false,
       },
       value: {
-        type: DataTypes.TEXT("long"),
+        type: DataTypes.TEXT,
         allowNull: true,
       },
     },
@@ -91,7 +95,7 @@ export async function usePostgresAuthState(sequelize) {
         allowNull: false,
       },
       value: {
-        type: DataTypes.TEXT("long"),
+        type: DataTypes.TEXT,
         allowNull: true,
       },
     },

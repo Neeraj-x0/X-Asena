@@ -72,12 +72,28 @@ npm run dev
 | `AI_API_KEY` | _(empty)_ | OpenAI-compatible API key (or configure via `#agentconfig` / dashboard). |
 | `AI_BASE_URL` | `https://api.openai.com/v1` | Provider Base URL (OpenAI, Groq, Ollama, OpenRouter, DeepSeek, etc.). |
 | `AI_MODEL` | `gpt-4o-mini` | Default LLM model ID. |
-| `ADMIN_HTTP_PORT` | _(off)_ | Port for the Web Dashboard & Ops HTTP server (e.g. `8787`). |
-| `ADMIN_HTTP_HOST` | `127.0.0.1` | Bind host for the Web Dashboard. |
+| `ADMIN_HTTP_PORT` | _(off)_ | Port for the Web Dashboard & Ops HTTP server (falls back to `PORT` on Koyeb/PaaS). |
+| `ADMIN_HTTP_HOST` | `127.0.0.1` | Bind host (`0.0.0.0` automatically when `PORT` is set). |
 | `ADMIN_HTTP_TOKEN` | _(empty)_ | Authentication token required for dashboard and API endpoints. |
 | `STICKER_PACKNAME` | `X-Asena` | Default sticker EXIF pack name. |
 | `STICKER_AUTHOR` | `X-Asena` | Default sticker EXIF author name. |
 | `REMOVEBG_API_KEY` | _(empty)_ | Optional API key for `#removebg`. |
+
+---
+
+## Deploy on Koyeb
+
+X-Asena includes a production `Dockerfile` (with `ffmpeg` pre-installed), `.dockerignore`, and automatic `PORT` / `/health` probe support:
+
+1. Create a **PostgreSQL** database on Koyeb (or external Postgres such as Neon/Supabase) so sessions survive restarts.
+2. Deploy this repository as a **Web Service** on Koyeb using the included **Dockerfile** builder (HTTP health check path: `/health`, default port `8000`).
+3. Set the required environment variables:
+   - `DATABASE_URL` — PostgreSQL connection string (`postgresql://...`)
+   - `OWNER_NUMBER` — Your WhatsApp phone number (country code, no `+`)
+   - `ADMIN_HTTP_TOKEN` — Strong secret to protect the Web Dashboard & Ops APIs
+   - `PAIRING_NUMBER` _(optional)_ — Phone number for pairing-code login, or scan the QR live in the Web Dashboard (`https://<your-app>.koyeb.app/?token=YOUR_TOKEN`)
+
+> Without `ADMIN_HTTP_TOKEN`, Koyeb deployments automatically stay in **health-check-only mode** (`/health` returns `200 OK`; the dashboard and API routes stay disabled).
 
 ---
 

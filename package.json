@@ -1,6 +1,6 @@
 {
   "name": "x-asena",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "Open Source WhatsApp Bot Using Baileys version ^7.x.x",
   "main": "index.js",
   "engines": {

@@ -5,7 +5,7 @@
 
 export const BOT_INFO = {
   NAME: "X-Asena",
-  VERSION: "4.0.0",
+  VERSION: "4.2.0",
   PREFIX: "#",
   OWNER: process.env.OWNER_NUMBER || "",
 };

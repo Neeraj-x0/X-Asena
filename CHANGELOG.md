@@ -11,6 +11,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Automated end-to-end integration tests for AI agent tool calling and rate limiters
 
+## [4.2.0] - 2026-11-25
+
+Feature and operations release introducing a **full-stack WhatsApp Operations Web Dashboard**, expanding the AI Agent to **56 native tools + Universal Bot Command Dispatch** across **all 132 menu commands** with structured parameter schemas, real-time event watchers, iterative loops, and critical Windows/JID stability fixes.
+
+### Added
+
+- **WhatsApp Operations Web Dashboard (`src/enterprise/adminHttp.js`, `src/enterprise/dashboardHtml.js`)**:
+  - Single-page dark-mode control center served at `http://127.0.0.1:8787/?token=<ADMIN_HTTP_TOKEN>`.
+  - **Session & Auth Telemetry (`src/socket/connection.js`)**: Live socket status (`open`, `qr`, `pairing`, `close`), local SVG QR code rendering when unlinked, on-demand Pairing Code generator, Reconnect/Logout buttons, Public/Private mode toggle, Online/Offline presence switches, memory/uptime KPIs, and an auto-refreshing live message stream.
+  - **Group & Moderation Inspector**: Browse all joined groups (`groupFetchAllParticipating`), toggle group locks (`announce`), edit-info restrictions (`restrict`), disappearing message timers, guard toggles (`welcome`, `goodbye`, `antilink`, `antispam`, `antiforeign`, `filter`), invite links with one-click revoke, and per-member actions (Warn, Unwarn, Promote/Demote, Kick).
+  - **Anti-Ban Messaging & Polls**: Dispatch Direct Messages (`@s.whatsapp.net` / `@lid`) and Group Messages through rate-limited throttling, and publish interactive WhatsApp polls.
+  - **AI Agent Control Panel**: Interactive prompt console, API Key / Base URL / custom or discovered model selector, Prompt Injection Guardrail controls (`standard` / `strict`), and active task/watcher cancellation.
+  - **Commands & Ops**: Live command runner across all 132+ commands, feature flag switches (including `maintenance` kill switch), global policy editor, and audit log viewer.
+
+- **56 Native AI Agent Tools & Universal Plugin Dispatch (`src/agent/aiAgent.js`)**:
+  - **Universal Bot Command Dispatch (`execute_bot_command`, `list_bot_commands`)**: Allows the AI agent to discover and invoke any registered bot plugin command (`ytdl`, `sticker`, `antilink`, `trt`, `pin`, etc.) with pre-execution validation for required arguments and quoted messages.
+  - **Structured Plugin Parameter Schemas (`src/plugins.js`, `src/plugins/*.js`)**: Added explicit `usage` and `params` definitions (`argsRequired`, `requiresQuoted`, `format`, `description`, `examples`) across all **31 plugin files** (**132/132** menu commands), plus enhanced `#help <command>` output in `src/plugins/menu.js`.
+  - **Real-Time Event Watchers (`src/agent/agentEvents.js`, `#agentwatchers`)**: Reactive watchers for `member_leave`, `member_join`, `member_promote`, `member_demote`, `message_contains`, `link_detected`, `profanity_detected`, and `media_received` hooked into `groupParticipants.js` and `handler.js`, with linked fallback task cancellation.
+  - **Iterative Autonomous Loops (`src/agent/agentCron.js`)**: `schedule_iterative_task` for step-by-step timed actions (`kick_next_member`, `send_reminder`, `custom_prompt`) with safety caps and termination conditions.
+  - **Extended Group & Moderation Tools**: `unlock_group`, `lock_group`, `set_group_edit_permission`, `set_group_member_add_mode`, `get_group_invite_link`, `revoke_group_invite_link`, `set_disappearing_messages`, `leave_group`, `kick_next_member`, `warn_group_member`, `reset_member_warnings`, `get_member_warnings`, `get_inactive_members`, `tag_filtered_members`, `create_group_poll`, `send_reaction`, `delete_message`, and `pin_chat_message`.
+
+### Fixed
+
+- **Windows SQLite Database Wipe `EBUSY` & Confirmation Prompt (`src/terminal/handler.js`, `src/database/authSqlite.js`, `src/database/authState.js`)**: Added `closeAuthState()` to flush queued SQLite writes, checkpoint WAL, and close the `better-sqlite3` handle before unlinking `database.db` (and `-wal`/`-shm` sidecars) with retry; fixed duplicate `stdin` listener printing `Unknown command: "Y"` during `A` → `Y` wipe confirmation.
+- **Dashboard AI Agent Config Persistence (`src/enterprise/adminHttp.js`)**: Fixed BotKV key mismatch (`ai_base_url`, `ai_api_key`, `ai_model`), positional `fetchAvailableModels(baseUrl, apiKey)` arguments, and graceful discovery error handling.
+- **Baileys `jidDecode` Undefined Crash (`src/agent/agentSafetyThrottle.js`, `src/enterprise/adminHttp.js`, `src/agent/aiAgent.js`)**: Fixed `groupJid` vs `targetJid` parameter mismatch in `POST /api/messages/send`, validated chat JIDs and mention arrays before Baileys calls, and added `normalizeMemberJids()` for group participant actions.
+- **Duplicate Command Cleanup (`src/plugins/agent.js`)**: Removed duplicate `agentwatchers` command registration.
+
 ## [4.1.0] - 2026-11-25
 
 Major feature release introducing an autonomous multi-modal agentic AI layer, WhatsApp Business suite, advanced group automation, prompt injection guardrails, WhatsApp anti-ban rate limiting, and Baileys 7.x LID vs JID differentiation.
@@ -18,12 +46,6 @@ Major feature release introducing an autonomous multi-modal agentic AI layer, Wh
 ### Added
 
 - **Autonomous Agentic AI Layer (`src/agent/`)**:
-  - Full suite of **56 native function tools** enabling complete autonomous execution of any WhatsApp administration, moderation, polling, and intelligence task.
-  - **Universal Bot Command Dispatch (`execute_bot_command`, `list_bot_commands`)**: The agent can now programmatically execute any of the 148 registered bot plugin commands (e.g. `ytdl`, `ping`, `runtime`, `antilink`, `welcome`, `goodbye`, `antispam`, `trt`, `qr`, `sticker`, `pin`, `weather`, etc.) with arguments directly on behalf of the user.
-  - **Real-Time Event Automation & Watchers (`src/agent/agentEvents.js`, `#agentwatchers`)**: Dynamic event monitoring for member leaves (`member_leave`), joins (`member_join`), promotions, demotions, message keyword matches, links, profanity, and media arrivals, triggering autonomous actions and auto-cancelling linked fallback tasks.
-  - **Iterative Autonomous Loops (`schedule_iterative_task`)**: Configurable repetitive task loops (e.g. kicking non-admins one by one each minute until empty, periodic reminders, or custom prompt iterations) backed by WhatsApp anti-ban rate limiting.
-  - **Comprehensive Group Administration**: Tools for group locking/unlocking (`unlock_group`, `lock_group`), edit permissions (`set_group_edit_permission`), member add approval modes (`set_group_member_add_mode`), invite link generation & revocation (`get_group_invite_link`, `revoke_group_invite_link`), disappearing messages (`set_disappearing_messages`), and bot departure (`leave_group`).
-  - **Advanced Moderation & Engagement**: Native WhatsApp interactive polls (`create_group_poll`), message reactions (`send_reaction`), message pinning (`pin_chat_message`), message deletion (`delete_message`), member warnings (`warn_group_member`, `reset_member_warnings`), inactive member audits (`get_inactive_members`), single-step kicks (`kick_next_member`), and mass filtered tags (`tag_filtered_members`).
   - Natural language triggers (`@bot <prompt>` and `#agent` / `#ask`).
   - OpenAI-compatible API backend with automatic model discovery (`#agentconfig`).
   - Persistent conversational memory layer (`#agentmemory`) storing facts, rules, and notes across bot restarts.
@@ -36,7 +58,7 @@ Major feature release introducing an autonomous multi-modal agentic AI layer, Wh
   - Live web search and URL webpage scraping tools (`web_search`, `fetch_webpage`).
   - Deterministic member filtering (`filter_group_members`) with phone number prefixes, digit sums, admin status, and custom conditions.
   - Dynamic agent personas (`#agentpersona`): default, executive, strict-mod, witty, tutor.
-  - Human-in-the-loop safety confirmation guardrails (`#confirm` / `#cancelaction`) for mass actions.
+  - Human-in-the-loop safety confirmation guardrails (`#confirm`) for mass actions.
 
 - **Prompt Injection Guardrails & Output Leak Scrubber (`src/agent/agentInjectionGuard.js`)**:
   - Multi-layer defense against direct jailbreaks ("ignore previous instructions", "DAN", "developer mode").
@@ -57,17 +79,13 @@ Major feature release introducing an autonomous multi-modal agentic AI layer, Wh
   - Automatic resolution mapping between LIDs and real phone numbers via group metadata and Baileys signal repository (`src/utils/lid.js`).
 
 - **WhatsApp Business Account Suite (`src/plugins/business.js`)**:
-  - Account safety guard strictly checking `conn.user.isBusiness` with fallback warnings to prevent non-business account bans.
-  - Business profile viewer/editor (`#bprofile`), business hours (`#bhours`), quick replies (`#quickreply`), catalog viewer (`#catalog`), away messages (`#awaymsg`), and greeting messages (`#greetmsg`).
+  - Account safety guard strictly checking business account authorization before running Business IQ queries.
+  - Business catalog viewer (`#catalog`), collections (`#collections`), profile editor (`#setbiz`), and cover photo manager (`#coverphoto`).
 
 - **Group Automation Suite**:
-  - Prohibited word and phrase filter (`#filter add|del|list`) with auto-delete.
-  - Anti-foreign country code blocker (`#antiforeign on|off|allow 91,63|action kick|warn`) auto-scanning new joins.
-  - Scheduled group auto-mute and auto-unmute (`#automute` / `#autounmute`).
-
-- **Command Architecture Harmonization**:
-  - Reorganized all 148 bot commands into 13 dedicated categories (`core`, `group`, `moderation`, `automation`, `tools`, `business`, `media`, `stickers`, `download`, `productivity`, `enterprise`, `settings`, `misc`).
-  - Upgraded interactive `#menu` displaying real-time RAM, uptime, and categorized commands.
+  - Prohibited word and phrase filter (`#filter on|off|add|del|list`) with auto-delete.
+  - Anti-foreign country code blocker (`#antiforeign on|off|add|del|list`) auto-scanning new joins.
+  - Scheduled group auto-mute and auto-unmute (`#automute` / `#autounmute` / `#autotime`).
 
 ### Fixed
 
@@ -103,6 +121,7 @@ Major Baileys **7.0.0-rc13** rewrite on `main` (previous line preserved as `pre-
 - User-facing errors stay generic; stacks go to the system log group only
 - Spoof mitigations on `messages.upsert` (notify-only, ignore `requestId`)
 
-[Unreleased]: https://github.com/Neeraj-x0/X-Asena/compare/v4.1.0...HEAD
+[Unreleased]: https://github.com/Neeraj-x0/X-Asena/compare/v4.2.0...HEAD
+[4.2.0]: https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.2.0
 [4.1.0]: https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.1.0
 [4.0.0]: https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.0.0

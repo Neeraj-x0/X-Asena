@@ -42,6 +42,18 @@ const TYPE_ORDER = [
   "misc",
 ];
 
+function resolveCategoryFilter(types, filterCategory) {
+  const q = filterCategory.toLowerCase();
+  const exact = types.filter((t) => t.toLowerCase() === q);
+  if (exact.length) return exact;
+
+  const byNameOrTitle = types.filter((t) => {
+    const title = CATEGORY_META[t]?.title?.toLowerCase() || "";
+    return t.toLowerCase().includes(q) || title.includes(q);
+  });
+  return byNameOrTitle;
+}
+
 async function buildMenuText(filterCategory = null) {
   const cmds = getMenuCommands();
   const byType = new Map();
@@ -52,17 +64,18 @@ async function buildMenuText(filterCategory = null) {
     byType.get(type).push(cmd);
   }
 
-  let types = [
+  const allTypes = [
     ...TYPE_ORDER.filter((t) => byType.has(t)),
     ...[...byType.keys()].filter((t) => !TYPE_ORDER.includes(t)).sort(),
   ];
 
+  let types = allTypes;
+  const isFiltered = Boolean(filterCategory);
   if (filterCategory) {
-    const matched = types.filter(
-      (t) => t.toLowerCase() === filterCategory.toLowerCase()
-    );
-    if (matched.length > 0) {
-      types = matched;
+    types = resolveCategoryFilter(allTypes, filterCategory);
+    if (!types.length) {
+      const valid = allTypes.map((t) => `\`${t}\``).join(", ");
+      return `Unknown category \`${filterCategory}\`.\n\nAvailable: ${valid}`;
     }
   }
 
@@ -81,15 +94,17 @@ async function buildMenuText(filterCategory = null) {
     /* BotKV may not be ready */
   }
 
-  let text = `*${BOT_INFO.NAME.toUpperCase()}*\n`;
-  text += `*Version:* v${BOT_INFO.VERSION}\n`;
-  text += `*Prefix:* \`${BOT_INFO.PREFIX}\`\n`;
-  text += `*Mode:* \`${mode}\`\n`;
-  text += `*Commands:* \`${cmds.length}\`\n`;
-  text += `*Language:* \`${lang}\`\n`;
+  const p = BOT_INFO.PREFIX;
+  const lines = [
+    `*${BOT_INFO.NAME}* · v${BOT_INFO.VERSION}`,
+    `Prefix \`${p}\` · ${mode} · ${cmds.length} cmds · ${lang}`,
+    "",
+  ];
 
   for (const type of types) {
-    const list = byType.get(type) || [];
+    const list = (byType.get(type) || [])
+      .slice()
+      .sort((a, b) => a.patternName.localeCompare(b.patternName));
     if (!list.length) continue;
 
     const meta = CATEGORY_META[type] || {
@@ -97,21 +112,26 @@ async function buildMenuText(filterCategory = null) {
       icon: "📌",
     };
 
-    text += `*${meta.icon} ${meta.title} (${list.length})*\n`;
-    for (const cmd of list.sort((a, b) =>
-      a.patternName.localeCompare(b.patternName)
-    )) {
-      const usage = `${BOT_INFO.PREFIX}${cmd.patternName}`;
-      text += `  • \`${usage}\``;
-      if (cmd.desc) text += ` — ${cmd.desc}`;
-      text += `\n`;
+    if (isFiltered) {
+      lines.push(`${meta.icon} *${meta.title}* (${list.length})`);
+      for (const cmd of list) {
+        lines.push(`• \`${p}${cmd.patternName}\`${cmd.desc ? ` — ${cmd.desc}` : ""}`);
+      }
+      lines.push("");
+    } else {
+      lines.push(`${meta.icon} *${meta.title}*`);
+      lines.push(list.map((c) => `${p}${c.patternName}`).join(", "));
+      lines.push("");
     }
-    text += `\n`;
   }
 
-  text += `_💡 Filter by category: \`${BOT_INFO.PREFIX}menu <category>\`_\n`;
-  text += `_💡 Command details: \`${BOT_INFO.PREFIX}help <command>\`_`;
-  return text;
+  if (isFiltered) {
+    lines.push(`_${p}help <cmd> for usage & examples_`);
+  } else {
+    lines.push(`_${p}menu <category> for descriptions · ${p}help <cmd> for usage_`);
+  }
+
+  return lines.join("\n").trim();
 }
 
 async function sendMenu(message, conn) {

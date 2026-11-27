@@ -5,30 +5,20 @@
 
 import {
   WAProto,
-  BufferJSON,
   generateWAMessageFromContent,
   prepareWAMessageMedia,
   downloadContentFromMessage,
   normalizeMessageContent,
 } from "baileys";
 import { kvGet, kvSet, kvDel } from "../database/botKv.js";
+import { encodeBufferJson, decodeBufferJson, cloneBufferJson } from "../database/bufferJson.js";
 import { downloadQuotedOrSelf } from "./media.js";
+import { msgCache } from "./cache.js";
+import { sendHtmlRichMessage } from "./htmlRich.js";
 
 const INDEX_KEY = "saved_quotes_index";
 const ITEM_PREFIX = "saved_quote:";
 const MAX_SAVED_MEDIA_BYTES = 12 * 1024 * 1024; // 12 MB safe DB cap
-
-function serializeWithBuffers(obj) {
-  return JSON.stringify(obj, BufferJSON.replacer);
-}
-
-function parseWithBuffers(raw) {
-  if (!raw) return null;
-  if (typeof raw === "string") {
-    return JSON.parse(raw, BufferJSON.reviver);
-  }
-  return JSON.parse(JSON.stringify(raw), BufferJSON.reviver);
-}
 
 export function normalizeQuoteName(name) {
   return String(name || "")
@@ -166,7 +156,7 @@ export async function getSavedQuoteByQuery(query) {
   if (!meta) return null;
 
   const rawItem = await kvGet(`${ITEM_PREFIX}${meta.key}`);
-  const item = parseWithBuffers(rawItem);
+  const item = decodeBufferJson(rawItem);
   if (!item) return null;
   return { meta, item };
 }
@@ -206,15 +196,31 @@ export async function saveQuotedMessage({ message, conn, name }) {
     throw new Error("Provide a name to save the quoted message (e.g. `#quoted interactive`).");
   }
 
-  const rawSource = message.quoted.rawQuotedMessage || message.quoted.raw;
-  if (!rawSource || typeof rawSource !== "object") {
+  const cached = message.quoted.stanzaId ? msgCache.get(message.quoted.stanzaId) : null;
+  const rawMessageSource =
+    cached?.rawWebMessage?.message ||
+    cached?.message ||
+    message.quoted.rawQuotedMessage ||
+    message.quoted.raw;
+  if (!rawMessageSource || typeof rawMessageSource !== "object") {
     throw new Error("Could not read the raw quoted message content.");
   }
 
-  const unwrapped = unwrapEphemeral(rawSource);
-  const protoCopy = JSON.parse(JSON.stringify(unwrapped, BufferJSON.replacer), BufferJSON.reviver);
-  const sanitizedProto = sanitizeProtoForBotSend(protoCopy);
-  const normContent = normalizeMessageContent(sanitizedProto) || sanitizedProto;
+  // Keep an exact untouched copy of the raw WhatsApp message object for DB persistence
+  const rawMessage = cloneBufferJson(rawMessageSource);
+  const rawWebMessage = cached?.rawWebMessage
+    ? cloneBufferJson(cached.rawWebMessage)
+    : {
+        key: {
+          remoteJid: message.from,
+          id: message.quoted.stanzaId || undefined,
+          participant: message.quoted.participant || undefined,
+        },
+        message: rawMessage,
+      };
+
+  const unwrapped = unwrapEphemeral(rawMessage);
+  const normContent = normalizeMessageContent(unwrapped) || unwrapped;
 
   const mediaTypes = new Set(["image", "video", "audio", "sticker", "document"]);
   let savedMedia = null;
@@ -248,12 +254,13 @@ export async function saveQuotedMessage({ message, conn, name }) {
     name: displayName,
     type: message.quoted.type || "unknown",
     messageTypeKey: message.quoted.messageTypeKey || Object.keys(normContent || {})[0] || "unknown",
-    proto: normContent,
+    rawMessage,
+    rawWebMessage,
     savedMedia,
     headerMedia,
   };
 
-  await kvSet(`${ITEM_PREFIX}${key}`, serializeWithBuffers(record));
+  await kvSet(`${ITEM_PREFIX}${key}`, encodeBufferJson(record));
 
   const index = await listSavedQuotes();
   const now = Date.now();
@@ -315,38 +322,55 @@ function buildAdditionalNodes(protoMsg) {
   return nodes;
 }
 
-/**
- * Send a saved quoted message freshly into `targetJid` as if sent from the bot itself.
- */
-export async function sendSavedQuote(conn, targetJid, item) {
-  if (!conn || !targetJid || !item) {
-    throw new Error("Missing connection, target chat, or saved message.");
+async function sendSavedMedia(conn, targetJid, m) {
+  const buf = Buffer.isBuffer(m.buffer) ? m.buffer : Buffer.from(m.buffer);
+  const payload = { [m.type]: buf };
+  if (m.caption) payload.caption = m.caption;
+  if (m.mimetype) payload.mimetype = m.mimetype;
+  if (m.fileName) payload.fileName = m.fileName;
+  if (m.type === "audio" && m.ptt) payload.ptt = true;
+  if (m.type === "video" && m.gifPlayback) payload.gifPlayback = true;
+  if (m.viewOnce) payload.viewOnce = true;
+  if (Array.isArray(m.mentions) && m.mentions.length) payload.mentions = m.mentions;
+  return await conn.sendMessage(targetJid, payload);
+}
+
+async function trySendSavedRichHtml(conn, targetJid, rawOrig) {
+  const richNode =
+    rawOrig?.botForwardedMessage?.message?.richResponseMessage ||
+    rawOrig?.richResponseMessage;
+  if (!richNode?.unifiedResponse?.data) return null;
+
+  try {
+    const rawData = richNode.unifiedResponse.data;
+    let jsonStr = "";
+    if (Buffer.isBuffer(rawData)) {
+      jsonStr = rawData.toString("utf8");
+    } else if (typeof rawData === "string") {
+      jsonStr = rawData.trim().startsWith("{")
+        ? rawData
+        : Buffer.from(rawData, "base64").toString("utf8");
+    } else {
+      jsonStr = Buffer.from(rawData).toString("utf8");
+    }
+    const parsed = JSON.parse(jsonStr);
+    const htmlPayload = parsed?.sections?.[0]?.view_model?.primitive?.payload;
+    if (typeof htmlPayload !== "string" || !htmlPayload.trim()) return null;
+
+    return await sendHtmlRichMessage(conn, targetJid, htmlPayload, {
+      fallbackText: richNode.submessages?.[0]?.messageText,
+      validate: false,
+    });
+  } catch {
+    return null;
   }
+}
 
-  // 1. Fresh media upload + send (images, videos, stickers, audio, documents)
-  if (item.savedMedia?.buffer) {
-    const m = item.savedMedia;
-    const buf = Buffer.isBuffer(m.buffer) ? m.buffer : Buffer.from(m.buffer);
-    const payload = { [m.type]: buf };
-    if (m.caption) payload.caption = m.caption;
-    if (m.mimetype) payload.mimetype = m.mimetype;
-    if (m.fileName) payload.fileName = m.fileName;
-    if (m.type === "audio" && m.ptt) payload.ptt = true;
-    if (m.type === "video" && m.gifPlayback) payload.gifPlayback = true;
-    if (m.viewOnce) payload.viewOnce = true;
-    if (Array.isArray(m.mentions) && m.mentions.length) payload.mentions = m.mentions;
-    return await conn.sendMessage(targetJid, payload);
-  }
-
-  const rawProto = sanitizeProtoForBotSend(item.proto || {});
-  const protoMsg = normalizeMessageContent(rawProto) || rawProto;
-
-  // 2. Plain text conversation
+async function trySendStructuredMessage(conn, targetJid, protoMsg) {
   if (typeof protoMsg.conversation === "string") {
     return await conn.sendMessage(targetJid, { text: protoMsg.conversation });
   }
 
-  // 3. Poll creation (needs fresh messageSecret + poll meta stanza)
   const poll =
     protoMsg.pollCreationMessage ||
     protoMsg.pollCreationMessageV2 ||
@@ -361,7 +385,6 @@ export async function sendSavedQuote(conn, targetJid, item) {
     });
   }
 
-  // 4. Location & Contacts via high-level Baileys API
   if (protoMsg.locationMessage && typeof protoMsg.locationMessage.degreesLatitude === "number") {
     const loc = protoMsg.locationMessage;
     return await conn.sendMessage(targetJid, {
@@ -393,44 +416,64 @@ export async function sendSavedQuote(conn, targetJid, item) {
     });
   }
 
-  // 5. Re-upload header media if present on interactive / buttons messages
-  if (item.headerMedia?.buffer && typeof conn.waUploadToServer === "function") {
-    try {
-      const hm = item.headerMedia;
-      const buf = Buffer.isBuffer(hm.buffer) ? hm.buffer : Buffer.from(hm.buffer);
-      const uploaded = await prepareWAMessageMedia(
-        {
-          [hm.kind]: buf,
-          ...(hm.mimetype ? { mimetype: hm.mimetype } : {}),
-          ...(hm.fileName ? { fileName: hm.fileName } : {}),
-        },
-        { upload: conn.waUploadToServer }
-      );
-      const mediaKeyName = `${hm.kind}Message`;
-      if (uploaded?.[mediaKeyName]) {
-        if (protoMsg.interactiveMessage?.header?.[mediaKeyName]) {
-          protoMsg.interactiveMessage.header[mediaKeyName] = uploaded[mediaKeyName];
-        } else if (protoMsg.buttonsMessage?.[mediaKeyName]) {
-          protoMsg.buttonsMessage[mediaKeyName] = uploaded[mediaKeyName];
-        }
-      }
-    } catch {
-      /* continue with existing header metadata */
+  return null;
+}
+
+async function reuploadInteractiveHeaderMedia(conn, headerMedia, protoMsg) {
+  if (!headerMedia?.buffer || typeof conn.waUploadToServer !== "function") return;
+  try {
+    const buf = Buffer.isBuffer(headerMedia.buffer)
+      ? headerMedia.buffer
+      : Buffer.from(headerMedia.buffer);
+    const uploaded = await prepareWAMessageMedia(
+      {
+        [headerMedia.kind]: buf,
+        ...(headerMedia.mimetype ? { mimetype: headerMedia.mimetype } : {}),
+        ...(headerMedia.fileName ? { fileName: headerMedia.fileName } : {}),
+      },
+      { upload: conn.waUploadToServer }
+    );
+    const mediaKeyName = `${headerMedia.kind}Message`;
+    if (!uploaded?.[mediaKeyName]) return;
+    if (protoMsg.interactiveMessage?.header?.[mediaKeyName]) {
+      protoMsg.interactiveMessage.header[mediaKeyName] = uploaded[mediaKeyName];
+    } else if (protoMsg.buttonsMessage?.[mediaKeyName]) {
+      protoMsg.buttonsMessage[mediaKeyName] = uploaded[mediaKeyName];
     }
+  } catch {
+    /* keep existing header metadata */
+  }
+}
+
+/**
+ * Send a saved quoted message freshly into `targetJid` as if sent from the bot itself.
+ */
+export async function sendSavedQuote(conn, targetJid, item) {
+  if (!conn || !targetJid || !item) {
+    throw new Error("Missing connection, target chat, or saved message.");
   }
 
-  // 6. Native proto replay (interactiveMessage, buttonsMessage, listMessage, extendedTextMessage, etc.)
-  const cleanMsgObject = WAProto.Message.create(protoMsg);
-  const fullMsg = generateWAMessageFromContent(targetJid, cleanMsgObject, {
+  if (item.savedMedia?.buffer) {
+    return await sendSavedMedia(conn, targetJid, item.savedMedia);
+  }
+
+  const rawOrig = item.rawMessage || item.proto || {};
+  const richSent = await trySendSavedRichHtml(conn, targetJid, rawOrig);
+  if (richSent) return richSent;
+
+  const protoMsg = normalizeMessageContent(sanitizeProtoForBotSend(unwrapEphemeral(rawOrig))) || {};
+  const structuredSent = await trySendStructuredMessage(conn, targetJid, protoMsg);
+  if (structuredSent) return structuredSent;
+
+  await reuploadInteractiveHeaderMedia(conn, item.headerMedia, protoMsg);
+
+  const fullMsg = generateWAMessageFromContent(targetJid, WAProto.Message.create(protoMsg), {
     userJid: conn.user?.id,
     timestamp: new Date(),
   });
-  const additionalNodes = buildAdditionalNodes(protoMsg);
-
   await conn.relayMessage(targetJid, fullMsg.message, {
     messageId: fullMsg.key.id,
-    additionalNodes,
+    additionalNodes: buildAdditionalNodes(protoMsg),
   });
-
   return fullMsg;
 }

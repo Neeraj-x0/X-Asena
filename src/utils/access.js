@@ -25,6 +25,8 @@ export const PRIVILEGED_COMMANDS = new Set([
   "backup",
   "metrics",
   "update",
+  "monitor",
+  "html",
 ]);
 
 /** Owner-only (not sudo) — plugin may still allow sudo list */
@@ -50,6 +52,17 @@ export function normalizeNumber(input) {
   // keep digits for phone; for LID keep alphanumeric
   const digits = s.replace(/\D/g, "");
   return digits || s;
+}
+
+/**
+ * Normalize a user-supplied phone number or JID into a valid WhatsApp JID without corrupting @lid / @g.us.
+ */
+export function toWhatsAppJid(input) {
+  const s = String(input || "").trim().replace(/^@/, "");
+  if (!s) return null;
+  if (s.includes("@")) return s;
+  const digits = s.replace(/\D/g, "");
+  return digits ? `${digits}@s.whatsapp.net` : null;
 }
 
 /**

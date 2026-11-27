@@ -9,7 +9,7 @@
 import { kvGet, kvSet } from "../database/botKv.js";
 import { groupCache } from "../utils/cache.js";
 import { isAdmin, isBotAdmin, displayId } from "../utils/group.js";
-import { isPrivileged, normalizeNumber } from "../utils/access.js";
+import { isPrivileged, normalizeNumber, toWhatsAppJid } from "../utils/access.js";
 import { isLidUser, isPnUser } from "../functions.js";
 import { BOT_INFO } from "../config/constants.js";
 import {
@@ -65,15 +65,7 @@ export function getDigitSum(numStr) {
  */
 function normalizeMemberJids(rawMembers) {
   const list = Array.isArray(rawMembers) ? rawMembers : [rawMembers];
-  return list
-    .filter(Boolean)
-    .map((t) => {
-      const s = String(t).trim().replace(/^@/, "");
-      if (s.includes("@")) return s;
-      const d = s.replace(/\D/g, "");
-      return d ? `${d}@s.whatsapp.net` : "";
-    })
-    .filter(Boolean);
+  return list.map(toWhatsAppJid).filter(Boolean);
 }
 
 /**
@@ -516,6 +508,38 @@ export const AGENT_TOOLS = [
           author: { type: "string", description: "Sticker author" },
         },
         required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_html_app",
+      description:
+        "Generate and deliver an interactive self-contained HTML mini-game, quiz, calculator, dashboard, or rich UI card directly into WhatsApp. MUST be 100% single-file inline HTML+CSS+JS (no external CDN <script src>, <link>, or external audio URLs; no alert/confirm/prompt; mobile-responsive layout <= 380px width; <script> inside an IIFE at bottom of <body>). For ANY game or gamified UI, MUST include inline HTML5 Web Audio API sound effects (AudioContext/webkitAudioContext oscillator + gain, triggered safely inside user interactions) + a sound mute toggle. Runs strict HTML, JS syntax, and sound validation before sending.",
+      parameters: {
+        type: "object",
+        properties: {
+          html: {
+            type: "string",
+            description:
+              "Complete self-contained <!DOCTYPE html> string with inline <style> and syntax-valid inline <script>.",
+          },
+          title: {
+            type: "string",
+            description: "Short human-readable title shown in fallback text (e.g. 'Tic-Tac-Toe' or 'Snake Game').",
+          },
+          gamified: {
+            type: "boolean",
+            description:
+              "Set true for any game, quiz, trivia, puzzle, wheel, dice, clicker, arcade, or gamified interactive UI (enforces inline HTML5 Web Audio sound effects).",
+          },
+          target: {
+            type: "string",
+            description: "Optional target JID or phone number. Omit to send in the current chat.",
+          },
+        },
+        required: ["html"],
       },
     },
   },
@@ -1545,6 +1569,54 @@ export async function executeAgentTool(name, args, context) {
     }
   }
 
+  if (name === "send_html_app") {
+    try {
+      let targetJid = groupJid || message.from;
+      if (args.target && String(args.target).trim() && args.target !== "current") {
+        const { isPrivileged: checkPriv } = await import("../utils/access.js");
+        const priv = await checkPriv(message, conn);
+        if (!callerAdmin && !priv) {
+          return { error: "PERMISSION DENIED: Only admins or owner can send HTML apps to other chats." };
+        }
+        const resolved = toWhatsAppJid(args.target);
+        if (!resolved) return { error: "Invalid target JID or phone number." };
+        targetJid = resolved;
+      }
+
+      const { validateAndPrepareHtml, sendHtmlRichMessage } = await import("../utils/htmlRich.js");
+      const { scrubAgentOutput } = await import("./agentInjectionGuard.js");
+      const title = String(args.title || "").trim();
+      const rawHtml = scrubAgentOutput(args.html || "");
+      const isGamified =
+        Boolean(args.gamified) ||
+        /\b(game|quiz|trivia|arcade|snake|tetris|pong|tic[- ]?tac|2048|flappy|memory|minesweeper|sudoku|wordle|wheel|dice|clicker|puzzle|shooter|platformer|chess|checkers|ludo|gamif)/i.test(
+          `${title} ${rawHtml.slice(0, 600)}`
+        );
+      const preparedHtml = validateAndPrepareHtml(rawHtml, {
+        branding: true,
+        requireSound: isGamified,
+      });
+      const fallbackText = title
+        ? `🎮 ${title} • Powered by ${BOT_INFO.NAME} — Open on a compatible WhatsApp client.`
+        : `⚡ Powered by ${BOT_INFO.NAME} — Open on a compatible WhatsApp client.`;
+
+      await sendHtmlRichMessage(conn, targetJid, preparedHtml, {
+        fallbackText,
+        validate: false,
+      });
+
+      return {
+        success: true,
+        message:
+          "Interactive HTML sent cleanly to WhatsApp! Reply briefly (1-2 sentences) confirming what you sent — do NOT paste raw HTML code in your text reply.",
+      };
+    } catch (err) {
+      return {
+        error: `HTML validation/send failed: ${err?.message || err}. Fix the HTML/JS issue and call 'send_html_app' again.`,
+      };
+    }
+  }
+
   // ==================== SUBAGENT SWARM & PLANNING EXECUTIONS ====================
   if (name === "delegate_subtask") {
     const { executeSubagentTask } = await import("./agentSubagents.js");
@@ -2288,7 +2360,16 @@ export async function runAgentPrompt({ prompt, message, conn }) {
     `7. Cron & Autonomous Execution: Schedule recurring cron jobs or delayed tasks using 'schedule_task' (supports standard 5-part cron syntax like '0 9 * * *', '*/30 * * * *', times like '23:00', or 'in 15m'). You will autonomously self-initiate and execute instructions when triggered!\n` +
     `8. Live Web Search & Browsing: Use 'web_search' to get real-time facts, news, sports scores, and search results; use 'fetch_webpage' to read and summarize any URL.\n` +
     `9. Safe Code Execution: Use 'run_code' to run JavaScript code in a sandbox for calculations, data analysis, regex, and algorithms.\n` +
-    `10. Generative Visuals: Use 'generate_image' to generate new AI images and 'create_sticker' to create stickers.\n` +
+    `10. Generative Visuals & Interactive HTML Games/Apps:\n` +
+    `    • Use 'generate_image' for AI images and 'create_sticker' for stickers.\n` +
+    `    • When asked to make/build/send a game, mini-app, calculator, quiz, animation, or HTML UI, ALWAYS call 'send_html_app' instead of pasting HTML code as text.\n` +
+    `    • Strictly follow these HTML reliability rules so code NEVER breaks inside WhatsApp's mobile WebView:\n` +
+    `      - 100% self-contained single-file <!DOCTYPE html> with inline <style> and inline <script> (NEVER use external <script src>, <link>, or external .mp3/.wav URLs).\n` +
+    `      - For ANY game, quiz, trivia, puzzle, wheel, dice, clicker, or gamified UI: set gamified=true and ALWAYS generate 100% inline HTML5 Web Audio sound effects (AudioContext || webkitAudioContext with oscillator + gain envelope for clicks, scores, level-ups, wins, and game-over, resumed safely on first tap inside try/catch) plus a Sound 🔊/🔇 mute toggle button.\n` +
+    `      - Design for narrow mobile cards (width: 100%, compact padding, responsive grid/flex, buttons >= 44px tap target, support both click and touch events).\n` +
+    `      - Place all JS inside an IIFE (function(){ ... })(); at the bottom of <body>, bind listeners cleanly after DOM elements exist, keep state cleanly resettable via a Restart/New Game button, and avoid alert()/confirm()/prompt().\n` +
+    `      - Double-check bracket/quote/brace balance; if 'send_html_app' returns a SyntaxError or validation error, fix it immediately and retry.\n` +
+    `      - After 'send_html_app' succeeds, reply briefly in 1-2 lines confirming how to play — never print HTML source in chat.\n` +
     `11. Vision: When an image is attached or quoted, you can inspect it and analyze its content, text, and details!\n` +
     `12. Strict Security: Destructive actions (kick, promote, demote, mute, schedule) require caller to be an Admin or Owner.\n` +
     `13. Always confirm the actions executed clearly, concisely, and with emojis.\n` +

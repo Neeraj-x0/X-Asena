@@ -15,7 +15,7 @@ import { useMultiDbAuthState, flushAuthState, pruneStaleSessions } from "../data
 import { serialize } from "../messages/serialize.js";
 import { messageHandler } from "../messages/handler.js";
 import { setConnection } from "../terminal/handler.js";
-import { groupCache, msgCache, createTtlCache } from "../utils/cache.js";
+import { groupCache, msgCache, createTtlCache, trackBotSentId } from "../utils/cache.js";
 import { attachGroupParticipantEvents } from "../events/groupParticipants.js";
 import { attachCallEvents } from "../events/callHandler.js";
 import {
@@ -23,6 +23,9 @@ import {
   stopReminderScheduler,
 } from "../utils/reminders.js";
 import { processGroupGuards } from "../messages/groupGuards.js";
+import { recordMonitoredMessage } from "../utils/monitorStore.js";
+import { recordWrappedActivity, flushWrappedStats } from "../utils/wrappedStore.js";
+import { tryStartAgentScheduler } from "../utils/agentBridge.js";
 
 const logger = pino({ level: process.env.BAILEYS_LOG_LEVEL || "silent" });
 
@@ -210,6 +213,25 @@ async function connect() {
 
     conn = makeWASocket(socketOptions);
 
+    // Track message IDs sent/relayed by this bot process so private-chat commands from the owner's phone aren't treated as bot echoes
+    if (typeof conn.sendMessage === "function") {
+      const origSendMessage = conn.sendMessage.bind(conn);
+      conn.sendMessage = async (...sendArgs) => {
+        const res = await origSendMessage(...sendArgs);
+        if (res?.key?.id) trackBotSentId(res.key.id);
+        return res;
+      };
+    }
+    if (typeof conn.relayMessage === "function") {
+      const origRelayMessage = conn.relayMessage.bind(conn);
+      conn.relayMessage = async (jid, message, opts = {}) => {
+        if (opts?.messageId) trackBotSentId(opts.messageId);
+        const id = await origRelayMessage(jid, message, opts);
+        if (id) trackBotSentId(id);
+        return id;
+      };
+    }
+
     globalConnection = conn;
     setConnection(conn);
     pairingRequested = false;
@@ -259,9 +281,7 @@ async function connect() {
         import("../plugins/automute.js")
           .then(({ startAutoMuteScheduler }) => startAutoMuteScheduler?.(conn))
           .catch(() => {});
-        import("../agent/agentCron.js")
-          .then(({ startAutonomousAgentScheduler }) => startAutonomousAgentScheduler?.(conn))
-          .catch(() => {});
+        tryStartAgentScheduler(conn).catch(() => {});
 
         // Non-blocking closed ratchet cleanup after boot + every 24h for 365-day uptime
         if (!startupPruned) {
@@ -394,10 +414,16 @@ async function connect() {
         if (msg.key?.id) {
           msgCache.set(msg.key.id, {
             message: msg.message,
+            rawWebMessage: msg,
             sender: msg.key?.participant || msg.key?.remoteJid,
             pushName: msg.pushName || "",
           });
         }
+
+        // Persist raw WAMessage object to DB if #monitor is ON for this chat
+        recordMonitoredMessage(msg).catch(() => {});
+        // Record lightweight chat Wrapped metrics in memory (flushed lazily to BotKV)
+        recordWrappedActivity(msg).catch(() => {});
 
         const message = await serialize(msg, conn);
         if (!message) return;
@@ -489,6 +515,7 @@ export async function shutdownConnection() {
   }
   isConnecting = false;
   connectionStatus = "closed";
+  await flushWrappedStats().catch(() => {});
   await flushAuthState().catch(() => {});
 }
 

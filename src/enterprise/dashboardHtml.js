@@ -786,6 +786,12 @@ export function renderDashboardHtml() {
       const ov = await api("/api/overview");
       stateOverview = ov;
 
+      const agentEnabled = ov.agentEnabled !== false;
+      const agentNavBtn = document.querySelector('[data-tab="agent"]');
+      const agentTab = document.getElementById("tab-agent");
+      if (agentNavBtn) agentNavBtn.classList.toggle("hidden", !agentEnabled);
+      if (agentTab && !agentEnabled) agentTab.classList.add("hidden");
+
       document.getElementById("versionTag").textContent = "v" + esc(ov.version) + " Ops";
       document.getElementById("kpiUptime").textContent = formatUptime(ov.metrics.uptime_s);
       document.getElementById("kpiNode").textContent = "Node " + esc(ov.nodeVersion);
@@ -1067,6 +1073,7 @@ export function renderDashboardHtml() {
     // AI Agent Control
     async function loadAgent() {
       const data = await api("/api/agent");
+      if (data.enabled === false) return;
       document.getElementById("aiBaseUrl").value = data.config?.baseUrl || "";
       document.getElementById("aiMaskedKey").textContent = data.config?.maskedKey || "Not set";
 

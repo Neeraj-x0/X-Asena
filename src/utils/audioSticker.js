@@ -622,6 +622,7 @@ export async function convertToOggOpus(buffer, ext = "mp3", maxDuration = MAX_AU
   const outPath = createTempPath(".ogg");
   try {
     await fs.writeFile(inPath, buffer);
+    // Use strict 16kHz mono Opus VOIP profile matching native WhatsApp iOS/Android PTT streams
     const { stderr } = await execFileAsync("ffmpeg", [
       "-y",
       "-i",
@@ -632,21 +633,23 @@ export async function convertToOggOpus(buffer, ext = "mp3", maxDuration = MAX_AU
       "-t",
       String(maxDuration),
       "-af",
-      "aresample=48000:async=1:first_pts=0",
+      "aresample=16000:async=1:first_pts=0",
       "-c:a",
       "libopus",
       "-b:a",
-      "48k",
+      "32k",
       "-vbr",
       "on",
       "-compression_level",
       "10",
+      "-frame_duration",
+      "20",
       "-ac",
       "1",
       "-ar",
-      "48000",
+      "16000",
       "-application",
-      "audio",
+      "voip",
       "-avoid_negative_ts",
       "make_zero",
       "-f",
@@ -718,6 +721,7 @@ export async function sendCombinedAudioSticker(conn, chatJid, stickerBuffer, isA
     { upload: conn.waUploadToServer }
   );
 
+  prepared.stickerMessage.mimetype = prepared.stickerMessage.mimetype || "image/webp";
   prepared.stickerMessage.isAnimated = Boolean(isAnimated);
   prepared.stickerMessage.audioMessage = audioMessage;
 

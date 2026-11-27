@@ -7,19 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-
-- **Self-Update & Koyeb Auto-Deploy (`#update`)**: Fetch GitHub commits and `CHANGELOG.md` directly in WhatsApp (`#update`), and reply `update now` (or `#update now`) to automatically trigger a Koyeb service redeployment.
-- **Koyeb Deployment Support**: Production `Dockerfile` (with `ffmpeg`), `.dockerignore`, one-click Deploy to Koyeb button in `README.md`, `PORT` / `/health` probe support, and clean `440` (`connectionReplaced`) + `SIGTERM` shutdown handling.
-
-### Changed
-
-- Switched repository license from MIT to **GNU Affero General Public License v3.0 (AGPL-3.0)** in `LICENSE`, `package.json`, and `README.md` (covering distributed forks and network/SaaS-hosted deployments).
-- Added formal non-affiliation, Terms of Service compliance, and no-liability Disclaimer section to `README.md`.
-
 ### Planned
 
 - Automated end-to-end integration tests for AI agent tool calling and rate limiters
+
+## [4.3.0] - 2026-11-27
+
+Major feature, UX, deployment, and reliability release introducing **interactive HTML Apps & AI Games (`#html`, `send_html_app`)**, **Chat Activity Wrapped (`#wrapped`)**, **Saved Raw Messages (`#quoted` / `getquoted`)**, **Chat Raw Monitor (`#monitor`)**, **Koyeb Cloud Deployment & `#update` Auto-Deploy**, **Plug-and-Play `src/agent/` decoupling**, **1-on-1 Private Chat fixes**, and **365-day Auth & Memory hardening**.
+
+### Added
+
+- **Interactive HTML Rich Cards & AI Game Builder (`src/utils/htmlRich.js`, `src/plugins/html.js`, `src/agent/aiAgent.js`)**:
+  - Added `#html` command (supports replied HTML text, `.html` document replies, or inline HTML) and AI tool `send_html_app` using WhatsApp's `GenAIUnifiedResponse` / `richResponseMessage` / `botForwardedMessage` + `MESSAGE_EDIT` hydration flow.
+  - Pre-send static & V8 JS syntax validator (`node:vm`), external URL blocking, mobile viewport & sandbox `localStorage`/toast shims, mandatory **X-Asena** branding badge on AI HTML sends, and enforced inline Web Audio API sound synthesis (`AudioContext` / `__xSound`) for gamified builds.
+- **Chat Activity Wrapped (`#wrapped`, `src/utils/wrappedStore.js`, `src/utils/wrappedHtml.js`, `src/plugins/wrapped.js`)**:
+  - 5-slide interactive Spotify-Wrapped-style HTML story deck (Top Yappers leaderboard, 24h peak-hour chart, media mix, top emojis/buzzwords, superlative awards, inline Web Audio chimes) plus `#wrapped text` and `#wrapped reset`.
+  - Aggregates bounded live activity flushed lazily to `BotKV` and merges persisted `#monitor` logs without double-counting.
+- **Saved Quoted Messages (`#quoted`, `getquoted`, `#delquoted`, `src/utils/quotedStore.js`, `src/plugins/quoted.js`)**:
+  - Captures exact raw WhatsApp message objects (`rawMessage` & `rawWebMessage`, including `interactiveMessage`, `buttonsMessage`, `listMessage`, `pollCreationMessage`, `richResponseMessage`, media, locations, and contacts) with optional media caching and replays them cleanly as originating from the bot itself via `getquoted` number replies.
+- **Chat Raw Message Monitor (`#monitor`, `src/utils/monitorStore.js`, `src/plugins/monitor.js`)**:
+  - Per-chat `#monitor on|off|status|list|export|clear|chats` saving raw `WAMessage` objects into chunked `BotKV` rows with serialized per-chat write queues.
+- **Plug-and-Play AI Agent Architecture (`src/utils/agentBridge.js`, `src/agent/plugin.js`, `src/plugins/agent.js`)**:
+  - Isolated all `src/agent/` references behind `agentBridge.js` and an optional plugin loader so deleting `src/agent/` cleanly removes agent commands, watchers, crons, and the Dashboard AI tab without breaking core bot or messaging functionality.
+- **Self-Update & Koyeb Auto-Deploy (`#update`, `src/utils/updater.js`, `src/plugins/update.js`)**:
+  - Fetches GitHub commits & `CHANGELOG.md` directly in WhatsApp (`#update`) and triggers automatic Koyeb redeployments (`update now` / `#update now`), with `Dockerfile`, `.dockerignore`, one-click **Deploy to Koyeb** button in `README.md`, `PORT` / `/health` probe support, and resilient `GET /health` startup checks.
+- **Performance & Auth Hardening (`src/database/authSqlite.js`, `src/database/authPostgres.js`, `src/database/bufferJson.js`, `src/utils/cache.js`)**:
+  - Added Signal closed-session console noise suppression (`SIGNAL_DEBUG=1` opt-in), zero-alloc `BufferJSON` + shared `encodeBufferJson`/`decodeBufferJson`/`cloneBufferJson` helpers, `BotKV` in-memory caching, SQLite WAL `PRAGMA` tuning, bounded TTL caches across moderation/socket/agent layers, and 24-hour closed-ratchet pruning.
+
+### Changed
+
+- **Compact `#menu` Layout (`src/plugins/menu.js`)**: Replaced the long per-command description list on the main `#menu` with clean categorized command lists; full descriptions and usage stay in `#menu <category>` and `#help <cmd>`.
+- **License & Governance**: Switched repository license from MIT to **GNU Affero General Public License v3.0 (AGPL-3.0)** in `LICENSE`, `package.json`, and `README.md`, and added a formal non-affiliation, Terms of Service compliance, and no-liability Disclaimer to `README.md`.
+
+### Fixed
+
+- **Private Chats (1-on-1 DMs & Saved Messages) & `@lid` Resolution (`src/messages/serialize.js`, `src/utils/cache.js`, `src/socket/connection.js`)**: Tracked outgoing bot-sent message IDs in bounded `botSentMsgCache` instead of assuming `key.fromMe && !key.participant` is a bot echo, unblocking owner commands in private chats; added `signalRepository.lidMapping.getPNForLID()` fallback for `@lid` DMs.
+- **iOS Audio Sticker Delivery & Codec (`src/utils/audioSticker.js`)**: Updated `convertToOggOpus()` to strict 16kHz mono `voip` Opus with 20ms frames and removed invalid `mediatype: "sticker"` stanza attributes on custom `audioStickerMessage` payloads.
+- **Clean Rolling Deploys (`src/socket/connection.js`, `index.js`)**: Stopped auto-reconnect ping-pong loops on `440` (`connectionReplaced`) and added graceful `SIGTERM`/`SIGINT` shutdown flushing auth state and Wrapped stats.
 
 ## [4.2.0] - 2026-11-25
 
@@ -131,7 +155,8 @@ Major Baileys **7.0.0-rc13** rewrite on `main` (previous line preserved as `pre-
 - User-facing errors stay generic; stacks go to the system log group only
 - Spoof mitigations on `messages.upsert` (notify-only, ignore `requestId`)
 
-[Unreleased]: https://github.com/Neeraj-x0/X-Asena/compare/v4.2.0...HEAD
+[Unreleased]: https://github.com/Neeraj-x0/X-Asena/compare/v4.3.0...HEAD
+[4.3.0]: https://github.com/Neeraj-x0/X-Asena/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.2.0
 [4.1.0]: https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.1.0
 [4.0.0]: https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.0.0

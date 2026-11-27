@@ -18,6 +18,11 @@ import { checkCommandFlag } from "../enterprise/flags.js";
 import { evaluatePolicy } from "../enterprise/policy.js";
 import { writeAudit } from "../enterprise/audit.js";
 import { recordCommand, recordError } from "../enterprise/metrics.js";
+import {
+  tryTriggerMessageWatchers,
+  tryHandleAdminConfirmation,
+  tryHandleAgentTrigger,
+} from "../utils/agentBridge.js";
 
 const AUDIT_ACTIONS = new Set([
   "kick",
@@ -38,6 +43,7 @@ const AUDIT_ACTIONS = new Set([
   "setlog",
   "createlog",
   "update",
+  "monitor",
 ]);
 
 export async function messageHandler(params) {
@@ -46,19 +52,12 @@ export async function messageHandler(params) {
     if (message.isBotMessage) return;
     if (!message.body) return;
 
-    // Autonomous Message Event Watchers
-    try {
-      const { triggerMessageEventWatchers } = await import("../agent/agentEvents.js");
-      triggerMessageEventWatchers({ message, conn }).catch(() => {});
-    } catch {
-      /* ignore */
-    }
+    // Optional AI Agent message watchers
+    tryTriggerMessageWatchers({ message, conn }).catch(() => {});
 
     if (!message.body.startsWith(BOT_INFO.PREFIX)) {
       try {
-        const { handleAdminConfirmation } = await import("../agent/agentGuardrails.js");
-        const confirmed = await handleAdminConfirmation({ message, conn });
-        if (confirmed) return;
+        if (await tryHandleAdminConfirmation({ message, conn })) return;
 
         const { handlePendingUpdateConfirmation } = await import("../plugins/update.js");
         if (await handlePendingUpdateConfirmation({ message, conn })) return;
@@ -66,9 +65,7 @@ export async function messageHandler(params) {
         const { handleQuotedInteraction } = await import("../plugins/quoted.js");
         if (await handleQuotedInteraction({ message, conn })) return;
 
-        const { checkAndHandleAgentTrigger } = await import("../agent/aiAgent.js");
-        const handled = await checkAndHandleAgentTrigger({ message, conn });
-        if (handled) return;
+        if (await tryHandleAgentTrigger({ message, conn })) return;
       } catch {
         /* non-agent message */
       }

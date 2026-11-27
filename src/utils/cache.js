@@ -88,3 +88,17 @@ export const msgCache = createTtlCache({
   ttlMs: 30 * 60 * 1000,
   max: 300,
 });
+
+/** Bounded cache of message IDs sent by this bot socket (~500 entries, 10 min) */
+export const botSentMsgCache = createTtlCache({
+  ttlMs: 10 * 60 * 1000,
+  max: 500,
+});
+
+export function trackBotSentId(id) {
+  if (id) botSentMsgCache.set(String(id), true);
+}
+
+export function isBotSentId(id) {
+  return Boolean(id && botSentMsgCache.has(String(id)));
+}

@@ -1,6 +1,6 @@
 # X-Asena
 
-[![Release](https://img.shields.io/badge/release-v4.2.0-blue.svg)](https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.2.0)
+[![Release](https://img.shields.io/badge/release-v4.3.0-blue.svg)](https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.3.0)
 [![Baileys](https://img.shields.io/badge/Baileys-7.0.0--rc13-green.svg)](https://github.com/WhiskeySockets/Baileys)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
@@ -12,8 +12,8 @@ Multi-device WhatsApp bot and autonomous agent platform built on [Baileys](https
 ## Highlights
 
 - **WhatsApp Operations Web Dashboard** — Localhost control center (`http://127.0.0.1:8787/?token=...`) featuring live SVG QR & pairing-code authentication, group/member moderation, anti-ban messaging & polls, interactive AI agent console, plugin command runner, feature flags, policies, and audit logs.
-- **Autonomous Multi-Modal AI Agent (56 Tools)** — OpenAI-compatible backend with automatic model discovery (`#agentconfig`), persistent memory (`#agentmemory`), Knowledge Base RAG (`#agentkb`), subagent delegation, cron & iterative loops (`#agenttasks`), real-time event watchers (`#agentwatchers`), live web search, JS VM sandbox, and vision analysis.
-- **Universal Plugin Dispatch** — Structured `usage` and `params` definitions across all **31 plugin files** (**132 menu commands**), enabling the AI agent to inspect formats and invoke any bot command via `execute_bot_command`.
+- **Autonomous Multi-Modal AI Agent (57 Tools — Plug & Play)** — OpenAI-compatible backend with automatic model discovery (`#agentconfig`), persistent memory (`#agentmemory`), Knowledge Base RAG (`#agentkb`), subagent delegation, cron & iterative loops (`#agenttasks`), real-time event watchers (`#agentwatchers`), live web search, JS VM sandbox, interactive HTML apps/games (`send_html_app`), and vision analysis. Safely detachable by removing `src/agent/`.
+- **Universal Plugin Dispatch** — Structured `usage` and `params` definitions across **36 plugin files** (**138 menu commands**), enabling the AI agent to inspect formats and invoke any bot command via `execute_bot_command`.
 - **Anti-Ban & Security Architecture** — Prompt injection guardrails (`#agentguard`), output secret scrubbing, zero-tolerance abuse filtering, simulated typing delays, DM pacing, human-in-the-loop approvals (`#confirm`), and Baileys 7.x `@lid` vs `@s.whatsapp.net` differentiation.
 - **Complete WhatsApp Feature Suite** — Group automation (`#filter`, `#antiforeign`, `#automute`), channels & communities (`#channel`, `#community`), stickers & audio stickers, YouTube & social downloads, WhatsApp Business tools (`#catalog`, `#setbiz`), and enterprise ops (RBAC, audit, feature flags, backups).
 
@@ -157,8 +157,8 @@ Run `#menu` in WhatsApp for the interactive categorized list, or `#help <command
 | **Business Suite** | `#business`, `#catalog`, `#collections`, `#setbiz`, `#coverphoto` |
 | **Status** | `#save` (`#statussaver`), `#poststatus`, `#autostatus` |
 | **Media & Downloads** | `#sticker` (`#s`), `#take` (`#steal`), `#toimg`, `#stickeraudio` (`#sa`), `#tomp3`, `#toururl` (`#url`), `#quote`, `#fancy`, `#tts`, `#ttp`, `#attp`, `#removebg`, `#play`, `#yt` (`#ytdl`), `#ytmp3`, `#ytmp4`, `#ig`, `#tiktok`, `#fb` |
-| **Tools & Productivity** | `#note`, `#quoted`, `#getquoted`, `#delquoted`, `#remind`, `#reminders`, `#cancelremind`, `#poll`, `#vcard`, `#loc`, `#checkwa`, `#whois`, `#getbio`, `#inspect`, `#join` |
-| **Enterprise & Owner** | `#update`, `#audit`, `#flag`, `#policy`, `#role`, `#backup`, `#metrics`, `#broadcast`, `#mode`, `#sudo`, `#setnamebot`, `#setpp`, `#delpp`, `#setbio`, `#exif`, `#createlog`, `#setlog`, `#setup` |
+| **Tools & Productivity** | `#note`, `#quoted`, `#getquoted`, `#delquoted`, `#html`, `#wrapped`, `#remind`, `#reminders`, `#cancelremind`, `#poll`, `#vcard`, `#loc`, `#checkwa`, `#whois`, `#getbio`, `#inspect`, `#join` |
+| **Enterprise & Owner** | `#update`, `#monitor`, `#audit`, `#flag`, `#policy`, `#role`, `#backup`, `#metrics`, `#broadcast`, `#mode`, `#sudo`, `#setnamebot`, `#setpp`, `#delpp`, `#setbio`, `#exif`, `#createlog`, `#setlog`, `#setup` |
 
 ---
 
@@ -183,8 +183,8 @@ Run `#menu` in WhatsApp for the interactive categorized list, or `#help <command
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
-- **Current Release:** [v4.2.0 (2026-11-25)](https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.2.0)
-- **Previous Releases:** [v4.1.0 (2026-11-25)](https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.1.0) · [v4.0.0 (2026-07-24)](https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.0.0)
+- **Current Release:** [v4.3.0 (2026-11-27)](https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.3.0)
+- **Previous Releases:** [v4.2.0 (2026-11-25)](https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.2.0) · [v4.1.0 (2026-11-25)](https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.1.0) · [v4.0.0 (2026-07-24)](https://github.com/Neeraj-x0/X-Asena/releases/tag/v4.0.0)
 
 ---
 

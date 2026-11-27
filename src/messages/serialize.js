@@ -1,3 +1,5 @@
+import { isBotSentId } from "../utils/cache.js";
+
 const MIME_TYPE_MAP = {
     conversation: "text",
     imageMessage: "image",
@@ -26,6 +28,7 @@ const MIME_TYPE_MAP = {
     eventMessage: "event",
     albumMessage: "album",
     groupInviteMessage: "invite",
+    richResponseMessage: "rich",
 };
 
 const IGNORED_META_KEYS = new Set([
@@ -41,6 +44,7 @@ const WRAPPER_KEYS = [
     "viewOnceMessageV2Extension",
     "documentWithCaptionMessage",
     "templateMessage",
+    "botForwardedMessage",
 ];
 
 /**
@@ -151,7 +155,8 @@ function extractQuotedMessage(contextInfo) {
     return q;
 }
 
-function extractRichTextPreview(content, mime) {
+export function extractMessagePreviewText(content, mime = "") {
+    if (typeof content === "string") return content;
     if (!content || typeof content !== "object") return "";
     if (mime === "interactive") {
         return content.body?.text || content.header?.title || content.footer?.text || "";
@@ -172,7 +177,18 @@ function extractRichTextPreview(content, mime) {
     if (mime === "contacts") return content.displayName || `${content.contacts?.length || 0} contacts`;
     if (mime === "event") return content.name || content.description || "";
     if (mime === "product") return content.product?.title || content.body || "";
-    return content.caption || content.text || "";
+    if (mime === "rich") return content.submessages?.[0]?.messageText || "HTML Rich Card";
+    return (
+        content.text ||
+        content.caption ||
+        content.body?.text ||
+        content.header?.title ||
+        content.contentText ||
+        content.name ||
+        content.displayName ||
+        content.title ||
+        ""
+    );
 }
 
 function normalizeQuoted(content, mime, messageTypeKey, raw) {
@@ -194,7 +210,7 @@ function normalizeQuoted(content, mime, messageTypeKey, raw) {
     return {
         ...(typeof content === "object" && content ? content : {}),
         type: mime,
-        text: extractRichTextPreview(content, mime),
+        text: extractMessagePreviewText(content, mime),
         caption: content?.caption,
         mimetype: content?.mimetype,
         messageTypeKey,
@@ -205,8 +221,10 @@ function normalizeQuoted(content, mime, messageTypeKey, raw) {
 /**
  * Determines sender information with explicit LID vs PN JID differentiation.
  */
-function getSenderInfo(key, isGroup, conn) {
-    const isBotMessage = Boolean(key.fromMe && !key.participant);
+async function getSenderInfo(key, isGroup, conn) {
+    // Only mark as bot-generated when the message ID came from this bot's socket.
+    // Private chats (1-on-1 DMs / Saved Messages) never have key.participant even when sent by the owner's phone.
+    const isBotMessage = Boolean(key.fromMe && isBotSentId(key.id));
 
     const rawPrimary = isGroup ? (key.participant || null) : key.remoteJid;
     const rawAlt = isGroup ? (key.participantAlt || null) : (key.remoteJidAlt || null);
@@ -226,7 +244,19 @@ function getSenderInfo(key, isGroup, conn) {
         senderLid = rawAlt;
     }
 
-    if (isBotMessage) {
+    // Resolve PN for @lid DMs when remoteJidAlt was not attached
+    if (!isGroup && !key.fromMe && !senderPn && senderLid && conn?.signalRepository?.lidMapping?.getPNForLID) {
+        try {
+            const resolvedPn = await conn.signalRepository.lidMapping.getPNForLID(senderLid);
+            if (resolvedPn) {
+                senderPn = resolvedPn.replace(/:\d+@/, "@");
+            }
+        } catch {
+            /* ignore LID lookup errors */
+        }
+    }
+
+    if (key.fromMe) {
         if (conn?.user?.id) {
             senderPn = conn.user.id.replace(/:\d+@/, "@").replace(/@s\.whatsapp\.net/, "") + "@s.whatsapp.net";
         }
@@ -236,8 +266,8 @@ function getSenderInfo(key, isGroup, conn) {
     }
 
     // sender prefers real PN JID for all plugins, fallback to LID, fallback to primary
-    const sender = isBotMessage
-        ? (conn?.user?.id || senderPn || senderLid)
+    const sender = key.fromMe
+        ? (conn?.user?.id || senderPn || senderLid || rawPrimary)
         : (senderPn || senderLid || rawPrimary);
 
     const isLid = Boolean(rawPrimary?.endsWith("@lid"));
@@ -283,7 +313,7 @@ async function serialize(message, conn) {
         isLid,
         phoneNumber,
         isBotMessage,
-    } = getSenderInfo(key, isGroup, conn);
+    } = await getSenderInfo(key, isGroup, conn);
 
     const contextInfo = messageContent?.contextInfo;
     const quoted = extractQuotedMessage(contextInfo);

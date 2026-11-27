@@ -8,6 +8,7 @@ import logger from "../utils/logger.js";
 import { isLogGroupAsync } from "../utils/logGroup.js";
 import { BOT_INFO } from "../config/constants.js";
 import { normalizeNumber } from "../utils/access.js";
+import { tryTriggerGroupWatchers } from "../utils/agentBridge.js";
 
 function formatTemplate(tpl, { user, group, count }) {
   return String(tpl || "")
@@ -35,15 +36,10 @@ export function attachGroupParticipantEvents(conn) {
 
       groupCache.delete(groupJid);
 
-      // Autonomous Event Watchers Trigger
-      try {
-        const { triggerGroupEventWatchers } = await import("../agent/agentEvents.js");
-        triggerGroupEventWatchers({ groupJid, action, participants, conn }).catch((e) =>
-          logger.warn("triggerGroupEventWatchers:", e?.message || e)
-        );
-      } catch {
-        /* ignore */
-      }
+      // Optional AI Agent Event Watchers Trigger
+      tryTriggerGroupWatchers({ groupJid, action, participants, conn }).catch((e) =>
+        logger.warn("triggerGroupEventWatchers:", e?.message || e)
+      );
 
       const settings = await getGroupSettings(groupJid);
       let meta = groupCache.get(groupJid);

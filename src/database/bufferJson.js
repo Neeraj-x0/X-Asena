@@ -40,6 +40,31 @@ export const BufferJSON = {
 };
 
 /**
+ * Serialize any value (preserving Buffers/Uint8Arrays) into a BufferJSON string.
+ */
+export function encodeBufferJson(obj) {
+  return JSON.stringify(obj, BufferJSON.replacer);
+}
+
+/**
+ * Revive a BufferJSON string or plain object back into native Buffers.
+ */
+export function decodeBufferJson(raw) {
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    return JSON.parse(raw, BufferJSON.reviver);
+  }
+  return JSON.parse(JSON.stringify(raw), BufferJSON.reviver);
+}
+
+/**
+ * Losslessly deep-clone an object containing Buffer/Uint8Array fields.
+ */
+export function cloneBufferJson(obj) {
+  return obj == null ? obj : decodeBufferJson(encodeBufferJson(obj));
+}
+
+/**
  * Sanitize key names for storage
  */
 export function sanitizeKey(key) {

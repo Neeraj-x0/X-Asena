@@ -17,6 +17,7 @@ import { BOT_INFO } from "../config/constants.js";
 import { checkFfmpeg } from "../onboarding/setup.js";
 import logger from "../utils/logger.js";
 import { renderDashboardHtml } from "./dashboardHtml.js";
+import { isAgentInstalled, loadAgentModule, dispatchSafeMessage } from "../utils/agentBridge.js";
 
 const require = createRequire(import.meta.url);
 const QRCode = require("qrcode-terminal/vendor/QRCode/index.js");
@@ -237,6 +238,7 @@ export function startAdminHttp() {
         return json(res, 200, {
           name: BOT_INFO.NAME,
           version: BOT_INFO.VERSION,
+          agentEnabled: isAgentInstalled(),
           nodeVersion: process.version,
           mode: await getMode(),
           ffmpeg: ff.ok,
@@ -465,21 +467,8 @@ export function startAdminHttp() {
         if (!target || !text) throw new Error("target and text are required");
         const { getConnection, getConnectionState } = await import("../socket/connection.js");
         const conn = requireConn({ ...getConnectionState(), conn: getConnection() });
-        const { safeDispatchGroupMessage, safeDispatchDirectMessage } = await import(
-          "../agent/agentSafetyThrottle.js"
-        );
 
-        let resMsg;
-        if (String(target).endsWith("@g.us")) {
-          resMsg = await safeDispatchGroupMessage({ conn, targetJid: target, text });
-        } else {
-          resMsg = await safeDispatchDirectMessage({
-            conn,
-            recipient: target,
-            text,
-            callerJid: conn.user?.id?.replace(/:\d+@/, "@") || undefined,
-          });
-        }
+        const resMsg = await dispatchSafeMessage({ conn, target, text });
 
         if (!resMsg?.success) throw new Error(resMsg?.error || "Failed to send message");
         await writeAudit({ action: "dashboard.send_message", actor: "dashboard", target: resMsg.deliveredTo || target });
@@ -507,32 +496,48 @@ export function startAdminHttp() {
 
       // ==================== AI AGENT CONTROL ====================
       if (method === "GET" && path === "/api/agent") {
-        const { getAgentConfig } = await import("../agent/aiAgent.js");
-        const { getCachedDiscoveredModels } = await import("../agent/agentModels.js");
-        const { getGuardrailConfig, getBlockedAttemptLogs } = await import(
-          "../agent/agentInjectionGuard.js"
-        );
-        const { listScheduledTasks } = await import("../agent/agentCron.js");
-        const { listEventWatchers } = await import("../agent/agentEvents.js");
+        if (!isAgentInstalled()) {
+          return json(res, 200, {
+            enabled: false,
+            config: { baseUrl: "", model: "", maskedKey: "", hasKey: false },
+            discoveredModels: [],
+            guardrails: { enabled: false, mode: "standard" },
+            blockedLogs: [],
+            tasks: [],
+            watchers: [],
+          });
+        }
+        const [aiMod, modelsMod, guardMod, cronMod, eventsMod] = await Promise.all([
+          loadAgentModule("aiAgent.js"),
+          loadAgentModule("agentModels.js"),
+          loadAgentModule("agentInjectionGuard.js"),
+          loadAgentModule("agentCron.js"),
+          loadAgentModule("agentEvents.js"),
+        ]);
 
-        const cfg = await getAgentConfig();
+        const cfg = await aiMod.getAgentConfig();
         const maskedKey = cfg.apiKey
           ? cfg.apiKey.slice(0, 5) + "..." + cfg.apiKey.slice(-4)
           : "";
 
         return json(res, 200, {
+          enabled: true,
           config: {
             baseUrl: cfg.baseUrl,
             model: cfg.model,
             maskedKey,
             hasKey: Boolean(cfg.apiKey),
           },
-          discoveredModels: await getCachedDiscoveredModels(),
-          guardrails: await getGuardrailConfig(),
-          blockedLogs: await getBlockedAttemptLogs(15),
-          tasks: await listScheduledTasks("all"),
-          watchers: await listEventWatchers("all"),
+          discoveredModels: await modelsMod.getCachedDiscoveredModels(),
+          guardrails: await guardMod.getGuardrailConfig(),
+          blockedLogs: await guardMod.getBlockedAttemptLogs(15),
+          tasks: await cronMod.listScheduledTasks("all"),
+          watchers: await eventsMod.listEventWatchers("all"),
         });
+      }
+
+      if (path.startsWith("/api/agent/") && !isAgentInstalled()) {
+        return json(res, 404, { error: "AI Agent module is not installed (src/agent missing)." });
       }
 
       if (method === "POST" && path === "/api/agent/prompt") {
@@ -541,7 +546,7 @@ export function startAdminHttp() {
         if (!prompt) throw new Error("prompt is required");
         const { getConnection, getConnectionState } = await import("../socket/connection.js");
         const conn = requireConn({ ...getConnectionState(), conn: getConnection() });
-        const { runAgentPrompt } = await import("../agent/aiAgent.js");
+        const { runAgentPrompt } = await loadAgentModule("aiAgent.js");
 
         const selfJid = conn.user?.id ? conn.user.id.replace(/:\d+@/, "@") : "";
         const targetJid =
@@ -567,8 +572,8 @@ export function startAdminHttp() {
       if (method === "POST" && path === "/api/agent/config") {
         const body = await readJsonBody(req);
         const { kvSet } = await import("../database/botKv.js");
-        const { getAgentConfig } = await import("../agent/aiAgent.js");
-        const { fetchAvailableModels } = await import("../agent/agentModels.js");
+        const { getAgentConfig } = await loadAgentModule("aiAgent.js");
+        const { fetchAvailableModels } = await loadAgentModule("agentModels.js");
 
         if (body.baseUrl !== undefined && String(body.baseUrl).trim()) {
           await kvSet("ai_base_url", String(body.baseUrl).trim());
@@ -605,7 +610,7 @@ export function startAdminHttp() {
           getGuardrailConfig,
           setGuardrailConfig,
           clearBlockedAttemptLogs,
-        } = await import("../agent/agentInjectionGuard.js");
+        } = await loadAgentModule("agentInjectionGuard.js");
 
         if (body.clearLogs) {
           await clearBlockedAttemptLogs();
@@ -625,14 +630,14 @@ export function startAdminHttp() {
 
       if (method === "POST" && path === "/api/agent/tasks/cancel") {
         const body = await readJsonBody(req);
-        const { cancelScheduledTask } = await import("../agent/agentCron.js");
+        const { cancelScheduledTask } = await loadAgentModule("agentCron.js");
         const ok = await cancelScheduledTask(body.taskId);
         return json(res, 200, { success: ok, message: ok ? "Scheduled task cancelled" : "Task not found" });
       }
 
       if (method === "POST" && path === "/api/agent/watchers/cancel") {
         const body = await readJsonBody(req);
-        const { cancelEventWatcher } = await import("../agent/agentEvents.js");
+        const { cancelEventWatcher } = await loadAgentModule("agentEvents.js");
         const ok = await cancelEventWatcher(body.watcherId);
         return json(res, 200, { success: ok, message: ok ? "Event watcher cancelled" : "Watcher not found" });
       }

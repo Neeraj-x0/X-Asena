@@ -63,6 +63,9 @@ export async function messageHandler(params) {
         const { handlePendingUpdateConfirmation } = await import("../plugins/update.js");
         if (await handlePendingUpdateConfirmation({ message, conn })) return;
 
+        const { handleQuotedInteraction } = await import("../plugins/quoted.js");
+        if (await handleQuotedInteraction({ message, conn })) return;
+
         const { checkAndHandleAgentTrigger } = await import("../agent/aiAgent.js");
         const handled = await checkAndHandleAgentTrigger({ message, conn });
         if (handled) return;

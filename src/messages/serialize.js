@@ -2,6 +2,7 @@ const MIME_TYPE_MAP = {
     conversation: "text",
     imageMessage: "image",
     videoMessage: "video",
+    ptvMessage: "video",
     stickerMessage: "sticker",
     documentMessage: "document",
     audioMessage: "audio",
@@ -9,7 +10,29 @@ const MIME_TYPE_MAP = {
     viewOnceMessageV2: "image",
     viewOnceMessageV2Extension: "image",
     extendedTextMessage: "text",
+    interactiveMessage: "interactive",
+    buttonsMessage: "buttons",
+    listMessage: "list",
+    templateMessage: "template",
+    pollCreationMessage: "poll",
+    pollCreationMessageV2: "poll",
+    pollCreationMessageV3: "poll",
+    locationMessage: "location",
+    liveLocationMessage: "location",
+    contactMessage: "contact",
+    contactsArrayMessage: "contacts",
+    productMessage: "product",
+    orderMessage: "order",
+    eventMessage: "event",
+    albumMessage: "album",
+    groupInviteMessage: "invite",
 };
+
+const IGNORED_META_KEYS = new Set([
+    "messageContextInfo",
+    "senderKeyDistributionMessage",
+    "protocolMessage",
+]);
 
 const WRAPPER_KEYS = [
     "ephemeralMessage",
@@ -72,10 +95,20 @@ function extractQuotedMessage(contextInfo) {
     );
 
     const unwrapped = unwrapMessage(contextInfo.quotedMessage);
-    const { key: quotedKey, mime } = getMessageMimeType(unwrapped);
-    if (mime === "unknown" || !quotedKey) return null;
+    let { key: quotedKey, mime } = getMessageMimeType(unwrapped);
+    if ((mime === "unknown" || !quotedKey) && unwrapped && typeof unwrapped === "object") {
+        const fallbackKey = Object.keys(unwrapped).find(
+            (k) => !IGNORED_META_KEYS.has(k) && unwrapped[k] != null
+        );
+        if (fallbackKey) {
+            quotedKey = fallbackKey;
+            mime = fallbackKey.replace(/Message.*$/i, "") || "unknown";
+        }
+    }
+    if (!quotedKey) return null;
 
     let content = unwrapped[quotedKey];
+    let q;
 
     // Nested wrappers (e.g. documentWithCaptionMessage)
     if (content?.message) {
@@ -83,14 +116,16 @@ function extractQuotedMessage(contextInfo) {
         const { key: nestKey, mime: nestMime } = getMessageMimeType(nested);
         if (nestMime !== "unknown" && nestKey) {
             content = nested[nestKey];
-            const q = normalizeQuoted(content, nestMime, nestKey, nested);
-            q.isViewOnce = isViewOnce;
-            return q;
+            q = normalizeQuoted(content, nestMime, nestKey, nested);
         }
     }
 
-    const q = normalizeQuoted(content, mime, quotedKey, unwrapped);
+    if (!q) {
+        q = normalizeQuoted(content, mime, quotedKey, unwrapped);
+    }
     q.isViewOnce = isViewOnce;
+    q.stanzaId = contextInfo.stanzaId || null;
+    q.rawQuotedMessage = contextInfo.quotedMessage;
 
     // Attach rich LID/PN sender metadata to quoted message
     const rawParticipant = contextInfo.participant || contextInfo.remoteJid || null;
@@ -116,6 +151,30 @@ function extractQuotedMessage(contextInfo) {
     return q;
 }
 
+function extractRichTextPreview(content, mime) {
+    if (!content || typeof content !== "object") return "";
+    if (mime === "interactive") {
+        return content.body?.text || content.header?.title || content.footer?.text || "";
+    }
+    if (mime === "buttons") {
+        return content.contentText || content.text || content.header?.title || "";
+    }
+    if (mime === "list") {
+        return content.title || content.description || content.buttonText || "";
+    }
+    if (mime === "template") {
+        const hyd = content.hydratedTemplate || content.hydratedFourRowTemplate || {};
+        return hyd.hydratedContentText || hyd.hydratedTitleText || "";
+    }
+    if (mime === "poll") return content.name || "";
+    if (mime === "location") return content.name || content.address || "";
+    if (mime === "contact") return content.displayName || "";
+    if (mime === "contacts") return content.displayName || `${content.contacts?.length || 0} contacts`;
+    if (mime === "event") return content.name || content.description || "";
+    if (mime === "product") return content.product?.title || content.body || "";
+    return content.caption || content.text || "";
+}
+
 function normalizeQuoted(content, mime, messageTypeKey, raw) {
     if (mime === "text") {
         const text =
@@ -135,7 +194,7 @@ function normalizeQuoted(content, mime, messageTypeKey, raw) {
     return {
         ...(typeof content === "object" && content ? content : {}),
         type: mime,
-        text: content?.caption || content?.text || "",
+        text: extractRichTextPreview(content, mime),
         caption: content?.caption,
         mimetype: content?.mimetype,
         messageTypeKey,

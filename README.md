@@ -157,7 +157,7 @@ Run `#menu` in WhatsApp for the interactive categorized list, or `#help <command
 | **Business Suite** | `#business`, `#catalog`, `#collections`, `#setbiz`, `#coverphoto` |
 | **Status** | `#save` (`#statussaver`), `#poststatus`, `#autostatus` |
 | **Media & Downloads** | `#sticker` (`#s`), `#take` (`#steal`), `#toimg`, `#stickeraudio` (`#sa`), `#tomp3`, `#toururl` (`#url`), `#quote`, `#fancy`, `#tts`, `#ttp`, `#attp`, `#removebg`, `#play`, `#yt` (`#ytdl`), `#ytmp3`, `#ytmp4`, `#ig`, `#tiktok`, `#fb` |
-| **Tools & Productivity** | `#note`, `#remind`, `#reminders`, `#cancelremind`, `#poll`, `#vcard`, `#loc`, `#checkwa`, `#whois`, `#getbio`, `#inspect`, `#join` |
+| **Tools & Productivity** | `#note`, `#quoted`, `#getquoted`, `#delquoted`, `#remind`, `#reminders`, `#cancelremind`, `#poll`, `#vcard`, `#loc`, `#checkwa`, `#whois`, `#getbio`, `#inspect`, `#join` |
 | **Enterprise & Owner** | `#update`, `#audit`, `#flag`, `#policy`, `#role`, `#backup`, `#metrics`, `#broadcast`, `#mode`, `#sudo`, `#setnamebot`, `#setpp`, `#delpp`, `#setbio`, `#exif`, `#createlog`, `#setlog`, `#setup` |
 
 ---
